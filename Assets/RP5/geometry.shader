@@ -62,7 +62,7 @@ Shader "Custuom/geometry"
                 GT1 = float4(normal, 0);
                 GT2 = float2(1, 1);
                 GT3 = float4(0, 0, 1, 1);
-                GT4 = float2(mr.g, mr.b);
+                GT4 = float2(mr.g, mr.b); // metalic roughness
             }
             ENDCG
         }
