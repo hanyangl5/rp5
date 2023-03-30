@@ -29,6 +29,7 @@ Shader "Custuom/geometry"
                 float2 uv : TEXCOORD0;
                 float4 vertex : SV_POSITION;
                 float3 normal : NORMAL;
+                float4 world_pos : TEXCOORD01;
             };
 
             sampler2D _base_color;
@@ -43,26 +44,27 @@ Shader "Custuom/geometry"
                 o.vertex = UnityObjectToClipPos(v.vertex);
                 o.uv = TRANSFORM_TEX(v.uv, _base_color);
                 o.normal = UnityObjectToWorldNormal(v.normal);
+                o.world_pos = mul(v.vertex, unity_ObjectToWorld);
                 return o;
             }
 
             void frag(
                 v2f i,
-                out float4 GT0 : SV_Target0,
-                out float4 GT1 : SV_Target1,
-                out float2 GT2 : SV_Target2,
-                out float4 GT3 : SV_Target3,
-                out float2 GT4 : SV_Target4) {
+                out float4 gbuffer0 : SV_Target0,
+                out float4 gbuffer1 : SV_Target1,
+                out float2 gbuffer2 : SV_Target2,
+                out float4 gbuffer3 : SV_Target3,
+                out float2 gbuffer4 : SV_Target4) {
                 float4 color = tex2D(_base_color, i.uv);
                 float4 mr = tex2D(_metallic_roughness, i.uv);
                 //float4 normal = tex2D(_normal_map, i.uv);
                 float3 normal = i.normal;
 
-                GT0 = color;
-                GT1 = float4(normal, 0);
-                GT2 = float2(1, 1);
-                GT3 = float4(0, 0, 1, 1);
-                GT4 = float2(mr.g, mr.b); // metalic roughness
+                gbuffer0 = color;
+                gbuffer1 = float4(normal, 0);
+                gbuffer2 = float2(1, 1);
+                gbuffer3 = float4(i.world_pos);
+                gbuffer4 = float2(mr.g, mr.b); // metalic roughness
             }
             ENDCG
         }

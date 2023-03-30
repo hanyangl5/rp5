@@ -13,7 +13,8 @@ struct BXDF {
     float YoM;
 };
 
-void InitBXDF(inout BXDF bxdf, float3 N, float3 V, float3 L) {
+BXDF InitBXDF(float3 N, float3 V, float3 L) {
+    BXDF bxdf;
     bxdf.NoL = saturate(dot(N, L));
     bxdf.NoV = saturate(dot(N, V));
     bxdf.VoL = saturate(dot(V, L));
@@ -26,6 +27,7 @@ void InitBXDF(inout BXDF bxdf, float3 N, float3 V, float3 L) {
     // bxdf.YoV = 0.0f;
     // bxdf.YoL = 0.0f;
     // bxdf.YoM = 0.0f;
+    return bxdf;
 }
 
 float3 Diffuse_Lambert(float3 albedo) { return albedo * UNITY_INV_PI; }

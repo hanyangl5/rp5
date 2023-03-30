@@ -22,7 +22,7 @@ public class RenderPipeline5 : RenderPipeline
         gbuffer_rt[1] = new RenderTexture(Screen.width, Screen.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
         // motion vector[16, 16]
         gbuffer_rt[2] = new RenderTexture(Screen.width, Screen.height, 0, RenderTextureFormat.RG32, RenderTextureReadWrite.Linear);
-        // emissive, [metallic16 roughness16] [32, 32, 32, 32]
+        // [world pos]
         gbuffer_rt[3] = new RenderTexture(Screen.width, Screen.height, 0, RenderTextureFormat.ARGB64, RenderTextureReadWrite.Linear);
         // metallic roughness
         gbuffer_rt[4] = new RenderTexture(Screen.width, Screen.height, 0, RenderTextureFormat.RG16, RenderTextureReadWrite.Linear);
@@ -59,25 +59,10 @@ public class RenderPipeline5 : RenderPipeline
 
     void LightPass(ScriptableRenderContext context, Camera camera)
     {
-        //// 使用 Blit
-        //CommandBuffer cmd = new CommandBuffer();
-        //cmd.name = "lightpass";
-
-        //Material mat = new Material(Shader.Find("Custuom/shading"));
-        //cmd.SetRenderTarget(shading_rt);
-        //context.ExecuteCommandBuffer(cmd);
-
-        //CommandBuffer cmd2 = new CommandBuffer();
-
-        //cmd2.Blit(shading_rt, BuiltinRenderTextureType.CameraTarget, mat);
-        //context.ExecuteCommandBuffer(cmd2);
-
-
         CommandBuffer cmd = new CommandBuffer();
         cmd.name = "lightpass";
         Material _lightPassMat = new Material(Shader.Find("Custuom/shading"));
         
-
         Mesh _fullScreenMesh = CreateFullscreenMesh();
         cmd.SetRenderTarget(shading_rt);
         cmd.ClearRenderTarget(true, true, Color.black);
@@ -127,15 +112,11 @@ public class RenderPipeline5 : RenderPipeline
         GeometryPasss(context, main_cam);
 
         LightPass(context, main_cam);
+        // blit
+        CommandBuffer blit_cmd = new CommandBuffer();
 
-
-        // skybox and Gizmos
-        //context.DrawSkybox(main_cam);
-        //if (Handles.ShouldRenderGizmos())
-        //{
-        //    context.DrawGizmos(main_cam, GizmoSubset.PreImageEffects);
-        //    context.DrawGizmos(main_cam, GizmoSubset.PostImageEffects);
-        //}
+        blit_cmd.Blit(shading_rt, BuiltinRenderTextureType.CameraTarget);
+        context.ExecuteCommandBuffer(blit_cmd);
 
         context.Submit();
     }
