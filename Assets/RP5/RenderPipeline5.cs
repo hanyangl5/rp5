@@ -1,6 +1,7 @@
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Diagnostics;
+using UnityEngine.Experimental.GlobalIllumination;
 using UnityEngine.Rendering;
 using UnityEngine.VFX;
 
@@ -61,13 +62,18 @@ public class RenderPipeline5 : RenderPipeline
     {
         CommandBuffer cmd = new CommandBuffer();
         cmd.name = "lightpass";
-        Material _lightPassMat = new Material(Shader.Find("Custuom/shading"));
-        
+        Material shading_mat = new Material(Shader.Find("Custuom/shading"));
+
+        Light light =  Object.FindObjectOfType<Light>();
+        DirectionalLight
         Mesh _fullScreenMesh = CreateFullscreenMesh();
         cmd.SetRenderTarget(shading_rt);
         cmd.ClearRenderTarget(true, true, Color.black);
         cmd.SetViewProjectionMatrices(Matrix4x4.identity, Matrix4x4.identity);
-        cmd.DrawMesh(_fullScreenMesh, Matrix4x4.identity, _lightPassMat, 0, 0);
+        
+        shading_mat.SetVector("light_direction", light.);
+        shading_mat.SetFloat("light_intensity", light.intensity);
+        cmd.DrawMesh(_fullScreenMesh, Matrix4x4.identity, shading_mat, 0, 0);
         context.ExecuteCommandBuffer(cmd);
     }
 
