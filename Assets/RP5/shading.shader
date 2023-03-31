@@ -1,15 +1,9 @@
 Shader "Custuom/shading"
 {
 
-    // CustomEditor = "ExampleCustomEditor"
-    Properties
-    {
-    // Material Properties
-    }
-    
     SubShader
     {
-    Cull Off ZWrite Off ZTest Always
+        Cull Off ZWrite Off ZTest Always
         Pass
         {
             HLSLPROGRAM
@@ -17,9 +11,23 @@ Shader "Custuom/shading"
             #include "UnityCG.cginc"
             #include "HLSLSupport.cginc"
             #include "brdf.hlsl"
+            #include "light.hlsl"
             #include "UnityLightingCommon.cginc"
+
             #pragma vertex VS_MAIN
             #pragma fragment PS_MAIN
+
+            StructuredBuffer<DirectionalLight> directional_lights;
+            StructuredBuffer<PointLight> point_lights;
+            StructuredBuffer<SpotLight> spot_lights;
+
+            sampler2D gdepth;
+            sampler2D gbuffer_0;
+            sampler2D gbuffer_1;
+            sampler2D gbuffer_2;
+            sampler2D gbuffer_3;
+            sampler2D gbuffer_4;
+            SamplerState sampler1; // a bilinear sampler to fetch gbuffer
 
             struct VsInput {
                 float4 pos : POSITION;
@@ -40,14 +48,6 @@ Shader "Custuom/shading"
                 return o;
             }
 
-            sampler2D gdepth;
-            sampler2D gbuffer_0;
-            sampler2D gbuffer_1;
-            sampler2D gbuffer_2;
-            sampler2D gbuffer_3;
-            sampler2D gbuffer_4;
-            
-            SamplerState sampler1; // a bilinear sampler to fetch gbuffer
 
             float4 PS_MAIN(PsInput i) : SV_Target
             {
