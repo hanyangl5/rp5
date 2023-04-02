@@ -51,7 +51,7 @@ struct CapsuleLight {
     float falloff;
     float3 position;
     float radius;
-    float length
+    float length;
     float3 tangent;
 };
 

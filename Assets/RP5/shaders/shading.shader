@@ -21,6 +21,7 @@ Shader "Custuom/shading"
             StructuredBuffer<PointLight> point_lights;
             StructuredBuffer<SpotLight> spot_lights;
 
+
             sampler2D gdepth;
             sampler2D gbuffer_0;
             sampler2D gbuffer_1;
@@ -80,6 +81,9 @@ Shader "Custuom/shading"
                 worldPos /= worldPos.w;
 
 */
+                float3 light_color = float3(1.0, 1.0, 1.0);
+                float light_intensity = 10.0f;
+                float3 light_dir = float3(1.0, 0.0, 0.0);
                 float4 world_pos = tex2D(gbuffer_3, i.uv);
                 float3 albedo = tex2D(gbuffer_0, i.uv).rgb;
                 float3 normal = normalize(tex2D(gbuffer_1, i.uv).rgb); // SIGNED OR UNSIGNED?
@@ -90,7 +94,8 @@ Shader "Custuom/shading"
                 float metallic = mr.x;
 
                 float3 f0 = lerp(float3(0.04, 0.04, 0.04), albedo, metallic);
-                float3 light_dir = normalize(_WorldSpaceLightPos0.xyz - world_pos);
+                //float3 light_dir = normalize(_WorldSpaceLightPos0.xyz - world_pos);
+                //light_dir = light_direction;
                 float3 v = normalize(_WorldSpaceCameraPos.xyz - world_pos);
                 BXDF bxdf = InitBXDF(normal, v, light_dir);
                 float D = NDF_GGX(roughness2, bxdf.NoM);
@@ -101,8 +106,8 @@ Shader "Custuom/shading"
 
                 float3 specular = D * G * F;
 
-                float3 radiance = (diffuse + specular) * bxdf.NoL * _LightColor0.rgb; // attenuation;
-                return float4(_LightColor0.rgb, 1.0);
+                float3 radiance = (diffuse + specular) * bxdf.NoL * light_color * light_intensity; // attenuation;
+                return float4(radiance, 1.0);
             }
             ENDHLSL
         }
