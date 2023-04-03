@@ -1,7 +1,8 @@
 // defines
+#include "common.hlsl"
 
 // Each #kernel tells which function to compile; you can have many kernels
-#pragma kernel ToneMapping_CS
+#pragma kernel SSR_CS
 
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture

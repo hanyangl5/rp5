@@ -1,0 +1,55 @@
+// defines
+// 
+
+#include "common.hlsl"
+
+#define SINGLE_PASS_POST_PROCESS
+
+float4 TonemapACES(float4 x)
+{
+	const float A = 2.51f;
+	const float B = 0.03f;
+	const float C = 2.43f;
+	const float D = 0.59f;
+	const float E = 0.14f;
+	return (x * (A * x + B)) / (x * (C * x + D) + E);
+}
+
+float4 GammaCorrection(float4 x, float gamma) {
+	return pow(x, (1.0f / gamma));
+}
+
+#ifdef SINGLE_PASS_POST_PROCESS
+
+#pragma kernel PostProcess_CS
+
+RWTexture2D<float4> color_tex;
+
+[numthreads(FULL_SCREEN_CS_THREAD_X, FULL_SCREEN_CS_THREAD_Y, FULL_SCREEN_CS_THREAD_Z)] 
+void PostProcess_CS(uint3 id : SV_DispatchThreadID)
+{
+	float4 result = color_tex[id.xy];
+	result = TonemapACES(result);
+	result = GammaCorrection(result, 2.2f);
+	color_tex[id.xy] = result; // float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
+}
+
+#else
+
+//// Each #kernel tells which function to compile; you can have many kernels
+//#pragma kernel ToneMapping_CS
+
+//// Create a RenderTexture with enableRandomWrite flag and set it
+//// with cs.SetTexture
+//RWTexture2D<float4> color_tex;
+
+
+
+//[numthreads(8, 8, 1)] void ToneMapping_CS(uint3 id
+//										  : SV_DispatchThreadID)
+//{
+//	color_tex[id.xy] = TonemapACES(color_tex[id.xy]); // float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
+//}
+
+
+#endif

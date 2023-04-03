@@ -27,7 +27,7 @@ public class RenderPipeline5 : RenderPipeline
     RenderTexture[] gbuffer_rt = new RenderTexture[render_target_count];
     RenderTargetIdentifier[] gbufferID = new RenderTargetIdentifier[render_target_count];
     RenderTexture shading_rt;
-
+    public ComputeShader post_process;
     ComputeShader auto_exposure;
 
     ComputeShader bloom_cs;
@@ -36,10 +36,10 @@ public class RenderPipeline5 : RenderPipeline
 
     // post processing pass
 
-    ComputeShader tone_mapping_cs; // hdr to ldr
-    ComputeShader color_grading_cs; // custuom color correction
-    ComputeShader film_grain_cs; // grain
-    ComputeShader gamma_cs; // gamm setting
+    //ComputeShader tone_mapping_cs; // hdr to ldr
+    //ComputeShader color_grading_cs; // custuom color correction
+    //ComputeShader film_grain_cs; // grain
+    //ComputeShader gamma_cs; // gamm setting
 
     // TODO single pass post process
     // ComputeShader all_in_one_post_process_cs;
@@ -59,6 +59,7 @@ public class RenderPipeline5 : RenderPipeline
         // metallic roughness
         gbuffer_rt[4] = new RenderTexture(Screen.width, Screen.height, 0, RenderTextureFormat.RG16, RenderTextureReadWrite.Linear);
         shading_rt = new RenderTexture(Screen.width, Screen.height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
+        shading_rt.enableRandomWrite = true;
         // 给纹理 ID 赋值
         for (int i = 0; i < render_target_count; i++)
             gbufferID[i] = gbuffer_rt[i];
@@ -132,9 +133,6 @@ public class RenderPipeline5 : RenderPipeline
         // 绘制
         context.DrawRenderers(culling_result, ref drawingSettings, ref filteringSettings);
 
-
-        // 提交绘制命令
-        //context.Submit();
     }
 
     void ShadowPass(ScriptableRenderContext context)
@@ -154,9 +152,13 @@ public class RenderPipeline5 : RenderPipeline
     {
         CommandBuffer pp_cmd = new CommandBuffer();
         pp_cmd.name = "post processing";
-        int kernel = tone_mapping_cs.FindKernel("ToneMapping_CS");
-        tone_mapping_cs.Dispatch(kernel, full_screen_cs_thread_group.x, full_screen_cs_thread_group.y, full_screen_cs_thread_group.z);
-        ///pp_cmd.DispatchCompute(tone_mapping_cs, kernel, );
+        post_process = Resources.Load<ComputeShader>("post_process");
+
+        int kernel = post_process.FindKernel("PostProcess_CS");
+        post_process.SetTexture(kernel, "color_tex", shading_rt);
+        //post_process.Dispatch(kernel, full_screen_cs_thread_group.x, full_screen_cs_thread_group.y, full_screen_cs_thread_group.z);
+        pp_cmd.DispatchCompute(post_process, kernel, full_screen_cs_thread_group.x, full_screen_cs_thread_group.y, full_screen_cs_thread_group.z);
+
         context.ExecuteCommandBuffer(pp_cmd);
         
     }
@@ -179,7 +181,9 @@ public class RenderPipeline5 : RenderPipeline
 
         full_width = (uint)main_cam.pixelWidth;
         full_height = (uint)main_cam.pixelHeight;
-
+        full_screen_cs_thread_group.x = (int)(full_width / 8) + 1;
+        full_screen_cs_thread_group.y = (int)(full_height / 8) + 1;
+        full_screen_cs_thread_group.z = 1;
         Shader.SetGlobalTexture("g_depth", depth_rt);
         for (int i = 0; i < render_target_count; i++)
             Shader.SetGlobalTexture("gbuffer_" + i, gbuffer_rt[i]);
