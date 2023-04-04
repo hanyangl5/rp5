@@ -5,7 +5,7 @@
 
 #define SINGLE_PASS_POST_PROCESS
 
-float4 TonemapACES(float4 x)
+float3 TonemapACES(float3 x)
 {
 	const float A = 2.51f;
 	const float B = 0.03f;
@@ -15,9 +15,40 @@ float4 TonemapACES(float4 x)
 	return (x * (A * x + B)) / (x * (C * x + D) + E);
 }
 
-float4 GammaCorrection(float4 x, float gamma) {
+float3 GammaCorrection(float3 x, float gamma) {
 	return pow(x, (1.0f / gamma));
 }
+
+float3 ColorGrading(float3 x, Texture2D<float4> lut, SamplerState linear_sampler, uint lut_size) {
+	float3 uvw = x * ((lut_size - 1) / lut_size) + (0.5f / lut_size);
+
+	// a volume texture 16x16x16 would be unwrapped to a 2d texture 256x16
+
+	half i_w = floor(uvw.z * (lut_size - 1) + 0.5f);
+
+	float2 uv = float2((uvw.x + i_w) / lut_size, uvw.y);
+
+	float3 grading_out = lut.Sample(linear_sampler, uv).rgb;
+
+	return grading_out;
+}
+
+// float3 FilmGrain(float3 x, float scale) {
+// 	float3 g = float3(grain(texCoord, p));
+  
+//     //blend the noise over the background, 
+//     //i.e. overlay, soft light, additive
+//     float3 color = blend(backgroundColor, g);
+    
+//     //get the luminance of the background
+//     float luminance = luma(backgroundColor);
+    
+//     //reduce the noise based on some 
+//     //threshold of the background luminance
+//     float response = smoothstep(0.05, 0.5, luminance);
+//     color = lerp(color, backgroundColor, pow(response, 2.0));
+//     return color;
+// }
 
 #ifdef SINGLE_PASS_POST_PROCESS
 
@@ -29,8 +60,8 @@ RWTexture2D<float4> color_tex;
 void PostProcess_CS(uint3 id : SV_DispatchThreadID)
 {
 	float4 result = color_tex[id.xy];
-	result = TonemapACES(result);
-	result = GammaCorrection(result, 2.2f);
+	result.rgb = TonemapACES(result.rgb);
+	result.rgb = GammaCorrection(result.rgb, 2.2f);
 	color_tex[id.xy] = result; // float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
 }
 

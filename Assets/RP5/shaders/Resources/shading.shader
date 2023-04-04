@@ -20,7 +20,10 @@ Shader "Custuom/shading"
             StructuredBuffer<DirectionalLight> directional_lights;
             StructuredBuffer<PointLight> point_lights;
             StructuredBuffer<SpotLight> spot_lights;
-
+// CBUFFER_START(_CustomLight)
+// 	float3 _DirectionalLightColor;
+// 	float3 _DirectionalLightDirection;
+// CBUFFER_END
 
             sampler2D gdepth;
             sampler2D gbuffer_0;
