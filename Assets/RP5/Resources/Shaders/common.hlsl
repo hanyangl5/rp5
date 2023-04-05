@@ -1,0 +1,11 @@
+#ifndef _COMMON_H
+#define _COMMON_H
+
+#define FULL_SCREEN_CS_THREAD_X 8
+#define FULL_SCREEN_CS_THREAD_Y 8
+#define FULL_SCREEN_CS_THREAD_Z 1
+
+// #define WORK_GROUP_SIZE 32
+// #define SCREEN_SPACE_PASS_WORK_GROUP_X 8
+// #define SCREEN_SPACE_PASS_WORK_GROUP_Y 4
+#endif
