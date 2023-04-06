@@ -67,7 +67,7 @@ void PostProcess_CS(uint3 id : SV_DispatchThreadID)
 	result.rgb = TonemapACES(result.rgb);
 	result.rgb = GammaCorrection(result.rgb, 2.2f);
 	color_tex[id.xy] = result; // float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
-	color_tex[id.xy] = color_tex[id.xy];
+
 }
 
 #else

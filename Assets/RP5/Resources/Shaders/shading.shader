@@ -93,7 +93,6 @@ CBUFFER_END
                 float3 f0 = lerp(float3(0.04, 0.04, 0.04), albedo, metallic);
                 float3 v = normalize(_WorldSpaceCameraPos.xyz - world_pos);
 
-
                 float3 radiance = float3(0.0, 0.0, 0.0);
 
 
@@ -103,7 +102,7 @@ CBUFFER_END
                         
                         float3 light_color = directional_lights[i].color;
                         float light_intensity = directional_lights[i].intensity;
-                        float3 light_dir = -directional_lights[i].direction;
+                        float3 light_dir = normalize(-directional_lights[i].direction);
 
                         if (dot(normal, light_dir) < 0.0) {
                             continue;
@@ -118,7 +117,6 @@ CBUFFER_END
                         float3 specular = D * G * F;
 
                         radiance += (diffuse + specular) * bxdf.NoL * light_color * light_intensity; // attenuation;
-                        //radiance = ( F * D * G) ;
                     }
                 }
 
@@ -145,7 +143,7 @@ CBUFFER_END
 
                         float3 specular = D * G * F;
                         float distance_attenuation = DistanceFalloff(distance, point_lights[i].falloff);
-                        //radiance += (diffuse + specular) * bxdf.NoL * light_color * light_intensity * distance_attenuation;
+                        radiance += (diffuse + specular) * bxdf.NoL * light_color * light_intensity * distance_attenuation;
                     }
 
                 }
@@ -173,7 +171,7 @@ CBUFFER_END
                         float distance_attenuation = DistanceFalloff(distance, spot_lights[i].falloff);
                         float angle_attenuation = AngleFalloff(spot_lights[i].inner_cone, spot_lights[i].outer_cone, spot_lights[i].direction, light_dir);
 
-                        //radiance += (diffuse + specular) * bxdf.NoL * light_color * light_intensity * distance_attenuation * angle_attenuation;
+                        radiance += (diffuse + specular) * bxdf.NoL * light_color * light_intensity * distance_attenuation * angle_attenuation;
                     }
 
                 }

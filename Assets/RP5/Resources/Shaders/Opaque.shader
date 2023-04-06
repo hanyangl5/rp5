@@ -47,7 +47,7 @@ Shader "Custuom/Opaque"
                 o.vertex = UnityObjectToClipPos(v.vertex);
                 o.uv = TRANSFORM_TEX(v.uv, _albedo_tex);
                 o.normal = UnityObjectToWorldNormal(v.normal);
-                o.world_pos = mul(v.vertex, unity_ObjectToWorld);
+                o.world_pos = mul(unity_ObjectToWorld, v.vertex);
                 return o;
             }
 
