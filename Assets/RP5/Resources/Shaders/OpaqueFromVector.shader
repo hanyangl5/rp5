@@ -42,7 +42,7 @@ Shader "Custuom/OpaqueFromVector"
                 v2f o;
                 o.vertex = UnityObjectToClipPos(v.vertex);
                 o.normal = UnityObjectToWorldNormal(v.normal);
-                o.world_pos = mul(v.vertex, unity_ObjectToWorld);
+                o.world_pos = mul(unity_ObjectToWorld, v.vertex);
                 return o;
             }
 

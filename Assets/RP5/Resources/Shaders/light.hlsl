@@ -1,3 +1,5 @@
+#ifndef _LIGHT_H
+#define _LIGHT_H
 
 // 1 bit for shadow
 // 1 bit for affect scene
@@ -86,3 +88,5 @@ float AngleFalloff(float inner_cone, float outer_cone, float3 direction, float3 
     float attenuation = clamp(cd * spotScale + spotOffset, 0.0, 1.0);
     return attenuation * attenuation;
 }
+
+#endif

@@ -5,7 +5,7 @@
 #include "common_math.hlsl"
 
 #define SINGLE_PASS_POST_PROCESS
-
+#pragma require WaveBallot // WaveActiveCountBits
 float3 TonemapACES(float3 x)
 {
 	const float A = 2.51f;
@@ -64,9 +64,9 @@ void PostProcess_CS(uint3 id : SV_DispatchThreadID)
 	if (Equal(result.rgb, float3(0.0, 0.0, 0.0) == 0.0)) {
 		return;
 	}
-	result.rgb = TonemapACES(result.rgb);
-	result.rgb = GammaCorrection(result.rgb, 2.2f);
-	color_tex[id.xy] = result; // float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
+	// result.rgb = TonemapACES(result.rgb);
+	// result.rgb = GammaCorrection(result.rgb, 2.2f);
+	color_tex[id.xy] = color_tex[id.xy]; // float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
 
 }
 

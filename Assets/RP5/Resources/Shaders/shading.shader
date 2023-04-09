@@ -18,12 +18,12 @@ Shader "Custuom/shading"
             #pragma vertex VS_MAIN
             #pragma fragment PS_MAIN
 
-CBUFFER_START(SceneConstant)
+//CBUFFER_START(SceneConstant)
 	uint directional_light_count;
 	uint point_light_count;
 	uint spot_light_count;
     uint pad0;
-CBUFFER_END
+//CBUFFER_END
 
             StructuredBuffer<DirectionalLight> directional_lights;
             StructuredBuffer<PointLight> point_lights;
@@ -92,9 +92,8 @@ CBUFFER_END
                 float metallic = mr.x;
                 float3 f0 = lerp(float3(0.04, 0.04, 0.04), albedo, metallic);
                 float3 v = normalize(_WorldSpaceCameraPos.xyz - world_pos);
-
+    
                 float3 radiance = float3(0.0, 0.0, 0.0);
-
 
                 // direct lighting
                 {
@@ -115,8 +114,8 @@ CBUFFER_END
                         float3 diffuse = Diffuse_Lambert(albedo); 
 
                         float3 specular = D * G * F;
-
-                        radiance += (diffuse + specular) * bxdf.NoL * light_color * light_intensity; // attenuation;
+                        
+                        radiance += (diffuse + specular) * dot(light_dir, normal) * light_color * light_intensity; // attenuation;
                     }
                 }
 
@@ -143,7 +142,7 @@ CBUFFER_END
 
                         float3 specular = D * G * F;
                         float distance_attenuation = DistanceFalloff(distance, point_lights[i].falloff);
-                        radiance += (diffuse + specular) * bxdf.NoL * light_color * light_intensity * distance_attenuation;
+                        radiance += (diffuse) * bxdf.NoL * light_color * light_intensity * distance_attenuation;
                     }
 
                 }
@@ -171,7 +170,7 @@ CBUFFER_END
                         float distance_attenuation = DistanceFalloff(distance, spot_lights[i].falloff);
                         float angle_attenuation = AngleFalloff(spot_lights[i].inner_cone, spot_lights[i].outer_cone, spot_lights[i].direction, light_dir);
 
-                        radiance += (diffuse + specular) * bxdf.NoL * light_color * light_intensity * distance_attenuation * angle_attenuation;
+                        radiance += (diffuse) * bxdf.NoL * light_color * light_intensity * distance_attenuation * angle_attenuation;
                     }
 
                 }

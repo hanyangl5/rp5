@@ -13,4 +13,6 @@ namespace RP5
         public uint point_lights_count = 0;
         public uint spot_lights_count = 0;
     };
+
+
 }

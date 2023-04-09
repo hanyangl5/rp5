@@ -5,10 +5,15 @@ using UnityEngine;
 using UnityEngine.Diagnostics;
 using UnityEngine.Experimental.GlobalIllumination;
 using UnityEngine.Rendering;
+using UnityEngine.UIElements;
 using UnityEngine.VFX;
+using static UnityEditor.Timeline.TimelinePlaybackControls;
 
 namespace RP5
 {
+    using float2 = UnityEngine.Vector2;
+    using float3 = UnityEngine.Vector3;
+    using float4 = UnityEngine.Vector4;
 
     public class RenderPipeline5 : RenderPipeline
     {
@@ -29,6 +34,10 @@ namespace RP5
         RenderTexture[] gbuffer_rt = new RenderTexture[render_target_count];
         RenderTargetIdentifier[] gbufferID = new RenderTargetIdentifier[render_target_count];
         RenderTexture shading_rt;
+
+        ComputeShader clear_buffer;
+        ComputeShader build_cluster;
+
         public ComputeShader post_process;
         ComputeShader auto_exposure;
 
@@ -154,6 +163,20 @@ namespace RP5
 
         }
 
+        void BuildCluster(ScriptableRenderContext context, Camera camera)
+        {
+
+            build_cluster = Resources.Load<ComputeShader>("Shaders/BuildCluster");
+            {
+                CommandBuffer cmd2 = new CommandBuffer();
+                cmd2.name = "light assign";
+
+                int kernel2 = build_cluster.FindKernel("LightAssign");
+                build_cluster.SetTexture(kernel2, "cluster_list", lighting.cluster_list);
+                cmd2.DispatchCompute(build_cluster, kernel2, 1, 1, 16);
+                context.ExecuteCommandBuffer(cmd2);
+            }
+        }
         void ShadowPass(ScriptableRenderContext context)
         {
 
@@ -178,8 +201,8 @@ namespace RP5
             int kernel = post_process.FindKernel("PostProcess_CS");
             post_process.SetTexture(kernel, "color_tex", shading_rt);
             //post_process.Dispatch(kernel, full_screen_cs_thread_group.x, full_screen_cs_thread_group.y, full_screen_cs_thread_group.z);
-            pp_cmd.DispatchCompute(post_process, kernel, full_screen_cs_thread_group.x, full_screen_cs_thread_group.y, full_screen_cs_thread_group.z);
-
+            //pp_cmd.DispatchCompute(post_process, kernel, full_screen_cs_thread_group.x, full_screen_cs_thread_group.y, full_screen_cs_thread_group.z);
+            
             context.ExecuteCommandBuffer(pp_cmd);
 
         }
@@ -194,22 +217,29 @@ namespace RP5
             blit_cmd.Blit(shading_rt, BuiltinRenderTextureType.CameraTarget);
             context.ExecuteCommandBuffer(blit_cmd);
         }
-
+        int a = 0;
         protected override void Render(ScriptableRenderContext context, Camera[] cameras)
         {
             Camera main_cam = cameras[0];
             context.SetupCameraProperties(main_cam);
-
-
-
-            lighting.Setup(context, scene_constants_data);
-
-            lighting.UploadBuffers(context);
-
+            //main_cam.rendert
             Shader.SetGlobalInteger("directional_light_count",(int)scene_constants_data.directional_lights_count);
             Shader.SetGlobalInteger("point_light_count",(int)scene_constants_data.point_lights_count);
             Shader.SetGlobalInteger("spot_light_count",(int)scene_constants_data.spot_lights_count);
             //Shader.SetGlobalConstantBuffer("SceneConstants", scene_constants_buffer, 0, 0);
+            
+            CommandBuffer cmd = new CommandBuffer();
+            cmd.name = "clear buffer";
+            clear_buffer = Resources.Load<ComputeShader>("Shaders/ClearBuffer");
+            cmd.DispatchCompute(clear_buffer, clear_buffer.FindKernel("ClearBuffer"), 1, 1, 1);
+            context.ExecuteCommandBuffer(cmd);
+            lighting.Setup(context, scene_constants_data);
+
+            lighting.BuildCluster(main_cam);
+            lighting.UploadBuffers(context);
+
+            BuildCluster(context, main_cam);
+
 
             ShadowPass(context);
 
@@ -223,9 +253,49 @@ namespace RP5
 
             PostProceePass(context);
 
-            Blit2Screen(context);
+            if (a++ == 0)
+            {
+                foreach (var plane in lighting.planes_xyz)
+                {
+                    Plane p = new Plane();
+                    p.SetNormalAndPosition(new float3(plane.x, plane.y, plane.z), main_cam.transform.position);
 
+
+                    DrawPlane(main_cam.transform.position, p.normal);
+                    // TODO: set up the mesh materials, textures, etc.
+
+                }
+            }
+            ////context.DrawSkybox(main_cam);
+            context.DrawGizmos(main_cam, GizmoSubset.PreImageEffects);
+            context.DrawGizmos(main_cam, GizmoSubset.PostImageEffects);
+
+            Blit2Screen(context);
             context.Submit();
+        }
+
+
+        void DrawPlane(Vector3 position, Vector3 normal)
+        {
+            Vector3 v3;
+            if (normal.normalized != Vector3.forward)
+                v3 = Vector3.Cross(normal, Vector3.forward).normalized * normal.magnitude;
+            else
+                v3 = Vector3.Cross(normal, Vector3.up).normalized * normal.magnitude; ;
+            var corner0 = position + v3;
+            var corner2 = position - v3;
+            var q = Quaternion.AngleAxis(90.0f, normal);
+            v3 = q * v3;
+            var corner1 = position + v3;
+            var corner3 = position - v3;
+            Debug.DrawLine(corner0, corner2, Color.green);
+            Debug.DrawLine(corner1, corner3, Color.green);
+            Debug.DrawLine(corner0, corner1, Color.green);
+            Debug.DrawLine(corner1, corner2, Color.green);
+            Debug.DrawLine(corner2, corner3, Color.green);
+            Debug.DrawLine(corner3, corner0, Color.green);
+            Debug.DrawRay(position, normal, Color.red);
         }
     }
 }
+
