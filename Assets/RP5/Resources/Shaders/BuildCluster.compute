@@ -1,30 +1,17 @@
 // Cluster Light Culling
-#include "common.hlsl"
+
+#include "geometry.hlsl"
 #include "light.hlsl"
-#include "debug.hlsl"
 // Each #kernel tells which function to compile; you can have many kernels
-#pragma kernel BuildCluster
+
 #pragma kernel LightAssign
-#pragma target 6.0
+
+#include "debug.hlsl"
 #pragma require WaveBallot // https://pixelalchemy.dev/posts/wave-intrinsics-in-unity/#explicitly-enabling-dxc-without-using-sm6-features
 // view space frustum
-struct Frustum {
-    float4 planes[6]; // left, right, bottom, top
-};
 
-struct AABB {
-    float3 ld;
-    float pad0;
-    float3 rt;
-    float pad1;
-};
-
-//CBUFFER_START(SceneConstant)
-	uint directional_light_count;
-	uint point_light_count;
-	uint spot_light_count;
-//CBUFFER_END
-
+uint point_light_count;
+uint spot_light_count;
 
 // light lists
 
@@ -33,19 +20,14 @@ uint num_tiles_x;
 uint num_tiles_y;
 uint num_tiles_z;
 
-float z_bias;
-float far_plane;
-float near_plane;
-float4x4 inverse_projection;
-float4x4 inverse_view;
-float eye_pos_x, eye_pos_y, eye_pos_z;
-
+float4x4 camera_view_projection;
 StructuredBuffer<PointLight> point_lights;
 StructuredBuffer<SpotLight> spot_lights;
-StructuredBuffer<AABB> point_light_aabbs;
-StructuredBuffer<AABB> spot_light_aabbs;
 
-RWStructuredBuffer<float4> planes_xyz;
+RWStructuredBuffer<AABB> point_lights_clip_aabb;
+RWStructuredBuffer<AABB> spot_lights_clip_aabb;
+
+
 // a indirect table to get better memory usage
 
 // 32 bit offset
@@ -61,144 +43,60 @@ RWStructuredBuffer<uint> item_list; // index the actual item
 
 RWStructuredBuffer<uint> cluster_list_offset;
 
-bool InsideFrustum(Frustum frustum, AABB aabb) {
-
-    float3 corners[8] = {
-        {aabb.ld.x, aabb.ld.y, aabb.ld.z}, // x y z
-        {aabb.rt.x, aabb.ld.y, aabb.ld.z}, // X y z
-        {aabb.ld.x, aabb.rt.y, aabb.ld.z}, // x Y z
-        {aabb.rt.x, aabb.rt.y, aabb.ld.z}, // X Y z
-
-        {aabb.ld.x, aabb.ld.y, aabb.rt.z}, // x y Z
-        {aabb.rt.x, aabb.ld.y, aabb.rt.z}, // X y Z
-        {aabb.ld.x, aabb.rt.y, aabb.rt.z}, // x Y Z
-        {aabb.rt.x, aabb.rt.y, aabb.rt.z}, // X Y Z
-    };
-    
-
-    for (uint i = 0; i < 6; i++) {
-        uint result = 0;
-        for (uint j = 0; j < 8; j++) {
-            // neg for all corners
-            if (dot(corners[j], frustum.planes[i]) < 0.0f) {
-                result++;
-            }
-        }
-        if (result == 8) {
-            return false;
-        }
-    }
-    return true;
+StructuredBuffer<float3> cluster_vertices;
+AABB GetClusterAABB(uint3 tile_index) {
+    AABB cluster_aabb;
+    // x: left to right
+    // y: bottom to up
+    // z: near to far
+    uint min_point_index = tile_index.z * (num_tiles_x + 1) * (num_tiles_y + 1) + tile_index.y * (num_tiles_x + 1) + tile_index.x;
+    uint max_point_index = (tile_index.z + 1) * (num_tiles_x + 1) * (tile_index.y + 1) + (num_tiles_y + 1) * (num_tiles_x + 1) + tile_index.x + 1;
+    cluster_aabb.min = cluster_vertices[min_point_index];
+    cluster_aabb.max = cluster_vertices[max_point_index];
+    return cluster_aabb;    
 }
-
-Frustum GetFrustum(uint3 tile_index) {
-    Frustum f;
-    f.planes[0] = planes_xyz[tile_index.x];
-    f.planes[1] = -planes_xyz[tile_index.x + 1];
-    f.planes[2] = planes_xyz[num_tiles_x + 1 + tile_index.y];
-    f.planes[3] = -planes_xyz[num_tiles_x + 1 + tile_index.y + 1];
-    f.planes[4] = planes_xyz[num_tiles_x + 1 + num_tiles_y + 1 + tile_index.z];
-    f.planes[5] = -planes_xyz[num_tiles_x + 1 + num_tiles_y + 1 + tile_index.z + 1];
-    return f;
-}
-
-
-
-
-// [numthreads(33, 1, 1)]
-// void BuildCluster (uint3 tile_index : SV_DispatchThreadID)
-// {
-//     if(tile_index.x > 33 || tile_index.y > 33 || tile_index.z > 17) {
-//         return;
-//     }
-
-//     float plane_z;
-//     if (tile_index.z == 0) {
-//         plane_z = near_plane;
-//     } else if (tile_index.z == 1) {
-//         plane_z = z_bias;
-//     } else {
-//         plane_z = z_bias * pow(far_plane / z_bias, float(tile_index.z) / num_tiles_z);
-//     }
-
-//     float3 center = float3(0.0, 0.0, 0.0);
-
-// {
-//     float x = -1.0f + 1.0f / num_tiles_x * tile_index.x * 2.0f ; // ndc space
-//     float4 clip_x = float4(x, 0.0f, 0.0f, 1.0f);
-//     float4 view_x = mul(inverse_projection, clip_x); // clipspace to view space
-//     view_x /= view_x.w;
-//     float4 clip_x2 = float4(x, 1.0f, 1.0f, 1.0f);
-//     float4 view_x2 = mul(inverse_projection, clip_x2); // clipspace to view space
-//     view_x2 /= view_x2.w;
-    
-//     // convert to world space
-//     float4 normal = mul(inverse_view, float4(normalize(cross(view_x2.xyz - view_x.xyz, center - view_x.xyz)), 0.0));
-//     normal.w = -dot(normal.xyz, float3(eye_pos_x, eye_pos_y, eye_pos_z));
-
-//     //
-//     view_x = mul(inverse_view, view_x);
-//     view_x2 = mul(inverse_view, view_x2);
-//     center = mul(inverse_view, center);
-//     float4 plane_func;
-//     plane_func.xyz = normalize(cross(view_x2.xyz - view_x.xyz, center - view_x.xyz));
-//     plane_func.w = -dot(plane_func.xyz, view_x2.xyz); // calculate the distance from the origin
-//     planes_xyz[num_tiles_x + 1 + tile_index.x] = plane_func; // eye is at center
-// }
-// {
-//     float y = -1.0f + 1.0f / num_tiles_y * tile_index.y * 2.0f; // ndc space
-//     float4 clip_y = float4(0, y, 0.0f, 1.0f);
-//     float4 view_y = mul(inverse_projection,clip_y); // clipspace to view space
-//     view_y /= view_y.w;
-//     float4 clip_y2 = float4(1.0f, y, 1.0f, 1.0f);
-//     float4 view_y2 = mul(inverse_projection ,clip_y2); // clipspace to view space
-//     view_y2 /= view_y2.w;
-
-//     //planes_xyz[num_tiles_x + 1 + tile_index.y] = mul(inverse_view, float4(normalize(cross(view_y2 - view_y, center - view_y)), 0.0)); // eye is at center
-
-// }
-//     //planes_xyz[num_tiles_x + 1 + num_tiles_y + 1 + tile_index.z] = mul(inverse_view, float4(0.0, 0.0, 1.0, -planes_z[tile_index.z]));
-// }
-
 
 [numthreads(32, 32, 1)]
 void LightAssign (uint3 tile_index : SV_DispatchThreadID)
 {
-    Frustum frustum = GetFrustum(tile_index);
+    AABB cluster_aabb = GetClusterAABB(tile_index);
     uint point_light_range = 0;
     uint point_light_index_list[1024]; // TODO(hylu): this solution is kind of dirty, crashes when over 1000 light are in one tile,
     
-    for (uint i = 0; i < point_light_count; i++) {
-        if (InsideFrustum(frustum, point_light_aabbs[i]) == true) {
+    for (uint i = 0; i < point_light_count; i++) {        
+        AABB clip_aabb = point_lights_clip_aabb[i];
+        // aabb intersect with aabb
+        if (AABBsIntersect(clip_aabb, cluster_aabb) == true) {
             point_light_index_list[point_light_range++] = i;
-            cluster_list[tile_index] = uint4(1, 1, 1, 1);
-            return;
         }
     }
     
     uint spot_light_range = 0;
-    // uint spot_light_index_list[1024];
+    uint spot_light_index_list[1024];
     
-    // for (uint j = 0; j < spot_light_count; j++) {
-    //     if (InsideFrustum(frustum, spot_light_aabbs[j]) == true) {
-    //         spot_light_index_list[spot_light_range++] = j;
-    //     }
-    // }
-    AllMemoryBarrierWithGroupSync();
+    for (uint i = 0; i < spot_light_count; i++) {        
+        AABB clip_aabb = spot_lights_clip_aabb[i];
+        // aabb intersect with aabb
+        if (AABBsIntersect(clip_aabb, cluster_aabb) == true) {
+            spot_light_index_list[spot_light_range++] = i;
+        }
+    }
+
+    // sync inside warp
 
     cluster_list[tile_index] = uint4(cluster_list_offset[0], (point_light_range), (spot_light_range), 0);
 
-    //if (point_light_range > 0) cluster_list[tile_index] = float4(1.0, 1.0, 1.0, 1.0);
     uint current_offset = cluster_list_offset[0];
 
+    AllMemoryBarrierWithGroupSync();
     InterlockedAdd(cluster_list_offset[0], point_light_range + spot_light_range);
 
     for (uint i = 0; i < point_light_range; i++) {
         item_list[current_offset + i] = point_light_index_list[i];
     }
-    AllMemoryBarrierWithGroupSync();
-    //  for (uint j = 0; j < spot_light_range; j++) {
-    //      item_list[current_offset + point_light_range + j] = spot_light_index_list[j];
-    //  }
+    for (uint j = 0; j < spot_light_range; j++) {
+        item_list[current_offset + point_light_range + j] = spot_light_index_list[j];
+    }
     
+    AllMemoryBarrierWithGroupSync();
 }

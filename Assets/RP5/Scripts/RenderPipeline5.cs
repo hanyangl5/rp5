@@ -34,11 +34,15 @@ namespace RP5
         RenderTexture[] gbuffer_rt = new RenderTexture[render_target_count];
         RenderTargetIdentifier[] gbufferID = new RenderTargetIdentifier[render_target_count];
         RenderTexture shading_rt;
-
+        RenderTexture previous_color_tex;
+        RenderTexture ssr_tex;
         ComputeShader clear_buffer;
-        ComputeShader build_cluster;
-
-        public ComputeShader post_process;
+        ComputeShader build_cluster = Resources.Load<ComputeShader>("Shaders/BuildCluster");
+        ComputeShader transform_geometry = Resources.Load<ComputeShader>("Shaders/ObjectTransform");
+        ComputeShader ssr = Resources.Load<ComputeShader>("Shaders/SSR");
+        ComputeShader composite_shading = Resources.Load<ComputeShader>("Shaders/CompositeShading");
+        RenderTargetIdentifier ssr_rti;
+        ComputeShader post_process = Resources.Load<ComputeShader>("Shaders/post_process");
         ComputeShader auto_exposure;
 
         ComputeShader bloom_cs;
@@ -78,10 +82,15 @@ namespace RP5
 
             shading_rt = new RenderTexture(Screen.width, Screen.height, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
             shading_rt.enableRandomWrite = true;
+            previous_color_tex = new RenderTexture(Screen.width, Screen.height, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
+            previous_color_tex.enableRandomWrite = true;
             // 给纹理 ID 赋值
             for (int i = 0; i < render_target_count; i++)
                 gbufferID[i] = gbuffer_rt[i];
 
+            ssr_tex  = new RenderTexture(Screen.width, Screen.height, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
+            ssr_tex.enableRandomWrite = true;
+            ssr_rti = new RenderTargetIdentifier(ssr_tex);
 
             full_width = (uint)Screen.width;
             full_height = (uint)Screen.height;
@@ -165,16 +174,29 @@ namespace RP5
 
         void BuildCluster(ScriptableRenderContext context, Camera camera)
         {
-
-            build_cluster = Resources.Load<ComputeShader>("Shaders/BuildCluster");
             {
-                CommandBuffer cmd2 = new CommandBuffer();
-                cmd2.name = "light assign";
+                CommandBuffer cmd = new CommandBuffer();
+                cmd.name = "transform geometry";
 
-                int kernel2 = build_cluster.FindKernel("LightAssign");
-                build_cluster.SetTexture(kernel2, "cluster_list", lighting.cluster_list);
-                cmd2.DispatchCompute(build_cluster, kernel2, 1, 1, 16);
-                context.ExecuteCommandBuffer(cmd2);
+                int kernel = transform_geometry.FindKernel("ObjectTransform");
+
+                var view_projection = camera.projectionMatrix * camera.cameraToWorldMatrix;
+
+                transform_geometry.SetMatrix("camera_view_projection", view_projection);
+
+                int x = (lighting.point_lights.Count + lighting.spot_lights.Count) / 32 + 1;
+
+                cmd.DispatchCompute(transform_geometry, kernel, x, 1, 1);
+                context.ExecuteCommandBuffer(cmd);
+            }
+            {
+                CommandBuffer cmd = new CommandBuffer();
+                cmd.name = "light assign";
+
+                int kernel = build_cluster.FindKernel("LightAssign");
+                build_cluster.SetTexture(kernel, "cluster_list", lighting.cluster_list);
+                cmd.DispatchCompute(build_cluster, kernel, 1, 1, 16);
+                context.ExecuteCommandBuffer(cmd);
             }
         }
         void ShadowPass(ScriptableRenderContext context)
@@ -185,6 +207,21 @@ namespace RP5
         void SSRPass(ScriptableRenderContext context)
         {
 
+            Graphics.SetRandomWriteTarget(0, ssr_tex);
+            Graphics.ClearRandomWriteTargets();
+
+            CommandBuffer cmd = new CommandBuffer();
+            cmd.name = "ssr";
+
+            int kernel = ssr.FindKernel("SSR_CS");
+            ssr.SetTexture(kernel, "depth_stencil_tex", depth_rt);
+            ssr.SetTexture(kernel, "color_tex", shading_rt);
+            ssr.SetTexture(kernel, "normal_tex", gbuffer_rt[1]);
+            ssr.SetTexture(kernel, "ssr_tex", ssr_tex);
+            ssr.SetTexture(kernel, "world_pos_tex", gbuffer_rt[3]);
+            //ssr.Dispatch(kernel, full_screen_cs_thread_group.x, full_screen_cs_thread_group.y, full_screen_cs_thread_group.z);
+            cmd.DispatchCompute(ssr, kernel, full_screen_cs_thread_group.x, full_screen_cs_thread_group.y, full_screen_cs_thread_group.z);
+            context.ExecuteCommandBuffer(cmd);
         }
 
         void SSAOPass(ScriptableRenderContext context)
@@ -192,17 +229,28 @@ namespace RP5
 
         }
 
+
+        void CompositeShading(ScriptableRenderContext context)
+        {
+            CommandBuffer cmd = new CommandBuffer();
+            cmd.name = "composite shading";
+
+            int kernel = composite_shading.FindKernel("CompositeShading");
+            composite_shading.SetTexture(kernel, "color_tex", shading_rt);
+            composite_shading.SetTexture(kernel, "ssr_tex", ssr_tex);
+            cmd.DispatchCompute(composite_shading,kernel, full_screen_cs_thread_group.x, full_screen_cs_thread_group.y, full_screen_cs_thread_group.z);
+            context.ExecuteCommandBuffer(cmd);
+        }
         void PostProceePass(ScriptableRenderContext context)
         {
             CommandBuffer pp_cmd = new CommandBuffer();
             pp_cmd.name = "post processing";
-            post_process = Resources.Load<ComputeShader>("Shaders/post_process");
 
             int kernel = post_process.FindKernel("PostProcess_CS");
             post_process.SetTexture(kernel, "color_tex", shading_rt);
             //post_process.Dispatch(kernel, full_screen_cs_thread_group.x, full_screen_cs_thread_group.y, full_screen_cs_thread_group.z);
-            //pp_cmd.DispatchCompute(post_process, kernel, full_screen_cs_thread_group.x, full_screen_cs_thread_group.y, full_screen_cs_thread_group.z);
-            
+            pp_cmd.DispatchCompute(post_process, kernel, full_screen_cs_thread_group.x, full_screen_cs_thread_group.y, full_screen_cs_thread_group.z);
+
             context.ExecuteCommandBuffer(pp_cmd);
 
         }
@@ -213,8 +261,10 @@ namespace RP5
         {
             // blit
             CommandBuffer blit_cmd = new CommandBuffer();
-            blit_cmd.name = "blit to screen";
+            blit_cmd.name = "blit final color";
+            blit_cmd.Blit(shading_rt, ssr_tex);
             blit_cmd.Blit(shading_rt, BuiltinRenderTextureType.CameraTarget);
+
             context.ExecuteCommandBuffer(blit_cmd);
         }
         int a = 0;
@@ -235,7 +285,7 @@ namespace RP5
             context.ExecuteCommandBuffer(cmd);
             lighting.Setup(context, scene_constants_data);
 
-            lighting.BuildCluster(main_cam);
+            lighting.SetupCluster(main_cam);
             lighting.UploadBuffers(context);
 
             BuildCluster(context, main_cam);
@@ -250,22 +300,9 @@ namespace RP5
             // SSAOPass(context); need ambient light
 
             SSRPass(context);
-
+            CompositeShading(context);
             PostProceePass(context);
 
-            if (a++ == 0)
-            {
-                foreach (var plane in lighting.planes_xyz)
-                {
-                    Plane p = new Plane();
-                    p.SetNormalAndPosition(new float3(plane.x, plane.y, plane.z), main_cam.transform.position);
-
-
-                    DrawPlane(main_cam.transform.position, p.normal);
-                    // TODO: set up the mesh materials, textures, etc.
-
-                }
-            }
             ////context.DrawSkybox(main_cam);
             context.DrawGizmos(main_cam, GizmoSubset.PreImageEffects);
             context.DrawGizmos(main_cam, GizmoSubset.PostImageEffects);

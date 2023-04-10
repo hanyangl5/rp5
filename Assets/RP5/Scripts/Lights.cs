@@ -5,6 +5,7 @@ using Unity.VisualScripting;
 using System.Text;
 using System.Collections;
 using System;
+using JetBrains.Annotations;
 
 namespace RP5
 {
@@ -87,9 +88,9 @@ namespace RP5
 
         List<AABB> point_light_aabbs = new List<AABB>(0);
         List<AABB> spot_light_aabbs = new List<AABB>(0);
-
-        //List<float4> planes_xyz;
-        public float4[] planes_xyz = new float4[num_tiles_x + 1 + num_tiles_y + 1 + num_tiles_z + 1];
+        List<Matrix4x4> point_light_to_world = new List<Matrix4x4>(0);
+        List<Matrix4x4> spot_light_to_world = new List<Matrix4x4>(0);
+        float3[] cluster_vertices = new float3[(num_tiles_x + 1) * (num_tiles_y + 1) * (num_tiles_z + 1)];
         static int num_tiles_x = 32;
         static int num_tiles_y = 32;
         static int num_tiles_z = 16;
@@ -101,71 +102,26 @@ namespace RP5
         Matrix4x4 inverse_view;
         float3 eye_pos;
 
+        public ComputeBuffer cluster_vertices_buffer = new ComputeBuffer((num_tiles_x+1) * (num_tiles_y+1)*(num_tiles_z+1), System.Runtime.InteropServices.Marshal.SizeOf(typeof(float3)));
+
         public ComputeBuffer directional_lights_buffer = new ComputeBuffer((int)MAX_DIRECTIONAL_LIGHT, System.Runtime.InteropServices.Marshal.SizeOf(typeof(DirectionalLight)));
         public ComputeBuffer point_lights_buffer = new ComputeBuffer((int)MAX_POINT_LIGHT, System.Runtime.InteropServices.Marshal.SizeOf(typeof(PointLight)));
         public ComputeBuffer spot_lights_buffer = new ComputeBuffer((int)MAX_SPOT_LIGHT, System.Runtime.InteropServices.Marshal.SizeOf(typeof(SpotLight)));
 
         public ComputeBuffer point_light_aabbs_buffer = new ComputeBuffer((int)MAX_POINT_LIGHT, System.Runtime.InteropServices.Marshal.SizeOf(typeof(AABB)));
         public ComputeBuffer spot_light_aabbs_buffer = new ComputeBuffer((int)MAX_SPOT_LIGHT, System.Runtime.InteropServices.Marshal.SizeOf(typeof(AABB)));
+        
+        public ComputeBuffer point_light_clip_aabbs_buffer = new ComputeBuffer((int)MAX_POINT_LIGHT, System.Runtime.InteropServices.Marshal.SizeOf(typeof(AABB)));
+        public ComputeBuffer spot_light_clip_aabbs_buffer = new ComputeBuffer((int)MAX_SPOT_LIGHT, System.Runtime.InteropServices.Marshal.SizeOf(typeof(AABB)));
+
+        public ComputeBuffer point_light_to_world_buffer = new ComputeBuffer((int)MAX_POINT_LIGHT, System.Runtime.InteropServices.Marshal.SizeOf(typeof(Matrix4x4)));
+        public ComputeBuffer spot_light_to_world_buffer = new ComputeBuffer((int)MAX_SPOT_LIGHT, System.Runtime.InteropServices.Marshal.SizeOf(typeof(Matrix4x4)));
+
 
 
         public ComputeBuffer item_list_buffer = new ComputeBuffer(num_tiles_x * num_tiles_y * num_tiles_z * 1024, 4);
         public ComputeBuffer cluster_list_offset_buffer = new ComputeBuffer(1, 4);
 
-        public ComputeBuffer world_space_planes_buffer = new ComputeBuffer(num_tiles_x + num_tiles_y + num_tiles_z + 3, System.Runtime.InteropServices.Marshal.SizeOf(typeof(float4)));
-        float sqrt_2 = (float)Math.Sqrt(2.0f);
-
-
-        public bool InsideFrustum(Frustum frustum, AABB aabb)
-        {
-            if ((aabb.rt.z < frustum.z_min) || (aabb.ld.z > frustum.z_max))
-            {
-                return false;
-            }
-
-            List<float3> corners = new List<float3>
-            {
-                new float3(aabb.ld.x, aabb.ld.y, aabb.ld.z), // x y z
-                new float3(aabb.rt.x, aabb.ld.y, aabb.ld.z), // X y z
-                new float3(aabb.ld.x, aabb.rt.y, aabb.ld.z), // x Y z
-                new float3(aabb.rt.x, aabb.rt.y, aabb.ld.z), // X Y z
-                new float3(aabb.ld.x, aabb.ld.y, aabb.rt.z), // x y Z
-                new float3(aabb.rt.x, aabb.ld.y, aabb.rt.z), // X y Z
-                new float3(aabb.ld.x, aabb.rt.y, aabb.rt.z), // x Y Z
-                new float3(aabb.rt.x, aabb.rt.y, aabb.rt.z) // X Y Z
-            };
-
-            for (int i = 0; i < 4; i++)
-            {
-                uint result = 0;
-                for (int j = 0; j < 8; j++)
-                {
-                    // neg for all corners
-                    if (Vector3.Dot(corners[j], frustum.planes[i]) < 0.0f)
-                    {
-                        result++;
-                    }
-                }
-                if (result == 8)
-                {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        //public Frustum GetFrustum(int x, int y, int z)
-        //{
-        //    Frustum f;
-        //    f.planes = new float3[4];
-        //    f.z_min = planes_z[z];
-        //    f.z_max = planes_z[z + 1];
-        //    f.planes[0] = planes_xy[x];
-        //    f.planes[1] = -planes_xy[x + 1];
-        //    f.planes[2] = planes_xy[32 + 1 + y];
-        //    f.planes[3] = -planes_xy[32 + 1 + y + 1];
-        //    return f;
-        //}
 
         public void Setup(ScriptableRenderContext context, SceneConstants scene_constant_data)
         {
@@ -179,11 +135,14 @@ namespace RP5
                 point_light_aabbs.Clear();
             if (spot_light_aabbs != null)
                 spot_light_aabbs.Clear();
+            if(point_light_to_world != null)
+                point_light_to_world.Clear();
+            if (spot_light_to_world != null)
+                spot_light_to_world.Clear();
             //if (planes_xyz != null)
             //    planes_xyz.Clear();
 
             ColletSceneLights(scene_constant_data);
-            CreateRP5Lights(scene_constant_data);
         }
 
         public void UploadBuffers(ScriptableRenderContext context)
@@ -195,28 +154,32 @@ namespace RP5
             Shader.SetGlobalBuffer("point_lights", point_lights_buffer);
             Shader.SetGlobalBuffer("spot_lights", spot_lights_buffer);
 
+            cluster_vertices_buffer.SetData(cluster_vertices);
+            Shader.SetGlobalBuffer("cluster_vertices", cluster_vertices_buffer);
+
             point_light_aabbs_buffer.SetData(point_light_aabbs);
             spot_light_aabbs_buffer.SetData(spot_light_aabbs);
-            Shader.SetGlobalBuffer("point_light_aabbs", point_light_aabbs_buffer);
-            Shader.SetGlobalBuffer("spot_light_aabbs", spot_light_aabbs_buffer);
-
-            Shader.SetGlobalBuffer("planes_xyz", world_space_planes_buffer);
 
             Shader.SetGlobalInteger("num_tiles_x", num_tiles_x);
             Shader.SetGlobalInteger("num_tiles_y", num_tiles_y);
             Shader.SetGlobalInteger("num_tiles_z", num_tiles_z);
-            Shader.SetGlobalFloat("z_bias", z_bias);
-            Shader.SetGlobalFloat("near_plane", near_plane);
-            Shader.SetGlobalFloat("far_plane", far_plane);
-            Shader.SetGlobalMatrix("inverse_projection", inverse_projection);
-            Shader.SetGlobalMatrix("inverse_view", inverse_view);
-            //Shader.SetGlobalTexture("cluster_list", cluster_list);
+
+            point_light_aabbs_buffer.SetData(point_light_aabbs);
+            spot_light_aabbs_buffer.SetData(point_light_aabbs);
+
+            Shader.SetGlobalBuffer("point_lights_aabb", point_light_aabbs_buffer);
+            Shader.SetGlobalBuffer("spot_lights_aabb", spot_light_aabbs_buffer);
+            Shader.SetGlobalBuffer("point_lights_clip_aabb", point_light_clip_aabbs_buffer);
+            Shader.SetGlobalBuffer("spot_lights_clip_aabb", spot_light_clip_aabbs_buffer);
+
+            point_light_to_world_buffer.SetData(point_light_to_world);
+            spot_light_to_world_buffer.SetData(spot_light_to_world);
+            Shader.SetGlobalBuffer("point_light_to_world", point_light_to_world_buffer);
+            Shader.SetGlobalBuffer("spot_light_to_world", spot_light_to_world_buffer);
+
+            Shader.SetGlobalTexture("cluster_list", cluster_list);
             Shader.SetGlobalBuffer("item_list", item_list_buffer);
             Shader.SetGlobalBuffer("cluster_list_offset", cluster_list_offset_buffer);
-
-            Shader.SetGlobalFloat("eye_pos_x", eye_pos.x);
-            Shader.SetGlobalFloat("eye_pos_y", eye_pos.y);
-            Shader.SetGlobalFloat("eye_pos_z", eye_pos.z);
         }
         void ColletSceneLights(SceneConstants scene_constant_data)
         {
@@ -245,13 +208,13 @@ namespace RP5
                     l.falloff = light.range;
                     point_lights.Add(l);
 
-                    // world space aabb
+                    Bounds bounds = new Bounds(new float3(0.0f,0.0f,0.0f), new float3(light.range, light.range, light.range));
+                    // local space aabb
                     AABB aabb = new AABB();
-                    float offset = sqrt_2 * l.falloff;
-                    float3 offset1 = new float3(offset, offset, offset);
-                    aabb.rt = l.position + offset1;
-                    aabb.ld = l.position - offset1;
+                    aabb.min = bounds.min;
+                    aabb.max = bounds.max;
                     point_light_aabbs.Add(aabb);
+                    point_light_to_world.Add(light.transform.localToWorldMatrix);
                 }
                 else if (light.type == LightType.Spot)
                 {
@@ -267,12 +230,13 @@ namespace RP5
                     spot_lights.Add(l);
 
                     // TODO: better bounds
+                    Bounds bounds = new Bounds(light.transform.position, new float3(light.range, light.range, light.range));
+                    // local space aabb
                     AABB aabb = new AABB();
-                    float offset = sqrt_2 * l.falloff;
-                    float3 offset1 = new float3(offset, offset, offset);
-                    aabb.rt = l.position + offset1;
-                    aabb.ld = l.position - offset1;
+                    aabb.min = bounds.min;
+                    aabb.max = bounds.max;
                     spot_light_aabbs.Add(aabb);
+                    spot_light_to_world.Add(light.transform.localToWorldMatrix);
                 }
             }
 
@@ -282,15 +246,16 @@ namespace RP5
         }
 
         // create more lights
-        void CreateRP5Lights(SceneConstants scene_constant_data)
-        {
+        //void CreateRP5Lights(SceneConstants scene_constant_data)
+        //{
 
-        }
+        //}
+
         public RenderTexture cluster_list;
         List<uint> item_list;
         uint cluster_list_offset;
         // TODO(hylu): only rebuild when projectionmatrix/near/far changes
-        public void BuildCluster(Camera camera, float t_z_bias = 5.0f, float t_z_end = 500.0f)
+        public void SetupCluster(Camera camera, float t_z_bias = 5.0f, float t_z_end = 500.0f)
         {
             if (cluster_list == null)
             {
@@ -316,66 +281,34 @@ namespace RP5
             int y_offset = num_tiles_x + 1;
             // tweak the first slice to get better depth distribution near near plane
 
-            for (int z = 0; z <= num_tiles_z; z++)
+            float[] zplanes = new float[num_tiles_z + 1];
+            zplanes[0] = near_plane;
+            zplanes[1] = z_bias;
+            for (int z = 2; z <= num_tiles_z; z++)
             {
-                float plane_z;
-                if (z == 0)
-                {
-                    plane_z = near_plane;
-                }
-                else if (z == 1)
-                {
-                    plane_z = z_bias;
-                }
-                else
-                {
-                    plane_z = z_bias * Mathf.Pow(far_plane / z_bias, (float)z / num_tiles_z);
-                }
-                float4 plane_z1 = inverse_view * new float4(0.0f, 0.0f, 1.0f, -plane_z);
-
-                planes_xyz[num_tiles_x + 1 + num_tiles_y + 1 + z] = plane_z1;
-
+                zplanes[z] = z_bias * Mathf.Pow(far_plane / z_bias, (float)z / num_tiles_z);
+                
             }
-
-
 
             // build x/y planes
 
             // left to right
             for (int i = 0; i < num_tiles_x + 1; i++)
             {
-                float x = -1.0f + 1.0f / num_tiles_x * i * 2.0f; // ndc space
-                float4 clip_x = new float4(x, 0.0f, 0.0f, 1.0f);
-                float4 view_x = inverse_projection * clip_x; // clipspace to view space
-                view_x /= view_x.w;
-                float4 clip_x2 = new float4(x, 1.0f, 1.0f, 1.0f);
-                float4 view_x2 = inverse_projection * clip_x2; // clipspace to view space
-                view_x2 /= view_x2.w;
-
-                Plane plane = new UnityEngine.Plane(new float3(view_x.x, view_x.y, view_x.z), new float3(view_x2.x, view_x2.y, view_x2.z), new float3(0, 0, 0));
-                float3 world_normal = (inverse_view * plane.normal).normalized; // eye is at center
-                float distance = -float3.Dot(world_normal, eye_pos);
-                planes_xyz[i] = new float4(world_normal.x, world_normal.y, world_normal.z, distance);
-            }
-
-            // bottom to up
-            for (int j = 0; j < num_tiles_y + 1; j++)
-            {
-                float y = -1.0f + 1.0f / num_tiles_y * j * 2.0f; // ndc space
-                float4 clip_y = new float4(0, y, 0.0f, 1.0f);
-                float4 view_y = inverse_projection * clip_y; // clipspace to view space
-                view_y /= view_y.w;
-                float4 clip_y2 = new float4(1.0f, y, 1.0f, 1.0f);
-                float4 view_y2 = inverse_projection * clip_y2; // clipspace to view space
-                view_y2 /= view_y2.w;
-
-                Plane plane = new UnityEngine.Plane(new float3(view_y.x, view_y.y, view_y.z), new float3(view_y2.x, view_y2.y, view_y2.z), new float3(0, 0, 0));
-                float3 world_normal = (inverse_view * plane.normal).normalized; // eye is at center
-                float distance = -float3.Dot(world_normal, eye_pos);
-                planes_xyz[num_tiles_x + 1 + j] = new float4(world_normal.x, world_normal.y, world_normal.z, distance);
-
+                float x = -1.0f + 1.0f / num_tiles_x * i * 2.0f;
+                // bottom to up
+                for (int j = 0; j < num_tiles_y + 1; j++)
+                {
+                    float y = -1.0f + 1.0f / num_tiles_y * j * 2.0f;
+                    for (int k = 0; k < num_tiles_z + 1; k++)
+                    {
+                        int point_index = k * (num_tiles_x + 1) * (num_tiles_y + 1) + j * (num_tiles_x + 1) + i;
+                        cluster_vertices[point_index] = new Vector3(x, y, zplanes[k]);
+                    }
+                }
             }
             int a = 5;
+
 #endif
         }
     }

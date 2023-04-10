@@ -14,4 +14,8 @@
 #define MAX_POINT_LIGHT 1024
 
 #define MAX_LIGHT_PER_CELL  64
+
+#define FLT_MIN -3.4028235e-38
+#define FLT_MAX 3.4028235e+38
+
 #endif

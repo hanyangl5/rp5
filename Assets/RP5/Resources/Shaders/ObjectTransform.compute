@@ -1,0 +1,85 @@
+#include "common.hlsl"
+#include "geometry.hlsl"
+
+#pragma kernel ObjectTransform
+#pragma require WaveBallot
+#include "debug.hlsl"
+float4x4 camera_view_projection;
+uint point_light_count;
+uint spot_light_count;
+StructuredBuffer<float4x4> point_light_to_world;
+StructuredBuffer<float4x4> spot_light_to_world;
+StructuredBuffer<AABB> point_lights_aabb;
+StructuredBuffer<AABB> spot_lights_aabb;
+RWStructuredBuffer<AABB> point_lights_clip_aabb;
+RWStructuredBuffer<AABB> spot_lights_clip_aabb;
+
+[numthreads(32, 1, 1)]
+void ObjectTransform(uint3 object_index : SV_DispatchThreadID) {
+
+    uint i = object_index.x;
+    // TODO: dynamic indexing buffer array, similar to buffer device address?
+    // point light
+    if (i < point_light_count) {
+        float4 corners[8] = {
+            {point_lights_aabb[i].min.x, point_lights_aabb[i].min.y, point_lights_aabb[i].min.z, 1.0}, // x y z
+            {point_lights_aabb[i].max.x, point_lights_aabb[i].min.y, point_lights_aabb[i].min.z, 1.0}, // X y z
+            {point_lights_aabb[i].min.x, point_lights_aabb[i].max.y, point_lights_aabb[i].min.z, 1.0}, // x Y z
+            {point_lights_aabb[i].max.x, point_lights_aabb[i].max.y, point_lights_aabb[i].min.z, 1.0}, // X Y z
+
+            {point_lights_aabb[i].min.x, point_lights_aabb[i].min.y, point_lights_aabb[i].max.z, 1.0}, // x y Z
+            {point_lights_aabb[i].max.x, point_lights_aabb[i].min.y, point_lights_aabb[i].max.z, 1.0}, // X y Z
+            {point_lights_aabb[i].min.x, point_lights_aabb[i].max.y, point_lights_aabb[i].max.z, 1.0}, // x Y Z
+            {point_lights_aabb[i].max.x, point_lights_aabb[i].max.y, point_lights_aabb[i].max.z, 1.0}, // X Y Z
+        };
+        
+        AABB clip_aabb;
+        clip_aabb.max = FLT_MIN;
+        clip_aabb.min = FLT_MAX;
+        // covert point_lights_aabb[i] to clip space
+        for (uint j = 0; j < 8; j++) {
+            corners[j] = mul(camera_view_projection, mul(point_light_to_world[i], corners[j]));
+            corners[j] /= corners[j].w;
+            clip_aabb.max.x = corners[j].x > clip_aabb.max.x ? corners[j].x : clip_aabb.max.x;
+            clip_aabb.max.y = corners[j].y > clip_aabb.max.y ? corners[j].y : clip_aabb.max.y;
+            clip_aabb.max.z = corners[j].z > clip_aabb.max.z ? corners[j].z : clip_aabb.max.z;
+            clip_aabb.min.x = corners[j].x < clip_aabb.min.x ? corners[j].x : clip_aabb.min.x;
+            clip_aabb.min.y = corners[j].y < clip_aabb.min.y ? corners[j].y : clip_aabb.min.y;
+            clip_aabb.min.z = corners[j].z < clip_aabb.min.z ? corners[j].z : clip_aabb.min.z;
+        }
+        point_lights_clip_aabb[i] = clip_aabb;
+    } else if (i > point_light_count && i < point_light_count + spot_light_count){
+        // // spot light
+        // i -= point_light_count;
+        // float4 corners[8] = {
+        //     {spot_lights_aabb[i].min.x, spot_lights_aabb[i].min.y, spot_lights_aabb[i].min.z, 1.0}, // x y z
+        //     {spot_lights_aabb[i].max.x, spot_lights_aabb[i].min.y, spot_lights_aabb[i].min.z, 1.0}, // X y z
+        //     {spot_lights_aabb[i].min.x, spot_lights_aabb[i].max.y, spot_lights_aabb[i].min.z, 1.0}, // x Y z
+        //     {spot_lights_aabb[i].max.x, spot_lights_aabb[i].max.y, spot_lights_aabb[i].min.z, 1.0}, // X Y z
+
+        //     {spot_lights_aabb[i].min.x, spot_lights_aabb[i].min.y, spot_lights_aabb[i].max.z, 1.0}, // x y Z
+        //     {spot_lights_aabb[i].max.x, spot_lights_aabb[i].min.y, spot_lights_aabb[i].max.z, 1.0}, // X y Z
+        //     {spot_lights_aabb[i].min.x, spot_lights_aabb[i].max.y, spot_lights_aabb[i].max.z, 1.0}, // x Y Z
+        //     {spot_lights_aabb[i].max.x, spot_lights_aabb[i].max.y, spot_lights_aabb[i].max.z, 1.0}, // X Y Z
+        // };
+        
+        // AABB clip_aabb;
+        // clip_aabb.max = float3(FLT_MIN, FLT_MIN, FLT_MIN);
+        // clip_aabb.min = float3(FLT_MAX, FLT_MAX, FLT_MAX);
+        // // covert spot_lights_aabb[i] to clip space
+        // for (uint j = 0; j < 8; j++) {
+        //     corners[j] = mul(camera_view_projection, mul(spot_light_to_world[i], corners[j]));
+        //     corners[j] /= corners[j].w;
+        //     clip_aabb.max.x = corners[j].x > clip_aabb.max.x ? corners[j].x : clip_aabb.max.x;
+        //     clip_aabb.max.y = corners[j].y > clip_aabb.max.y ? corners[j].y : clip_aabb.max.y;
+        //     clip_aabb.max.z = corners[j].z > clip_aabb.max.z ? corners[j].z : clip_aabb.max.z;
+        //     clip_aabb.min.x = corners[j].x < clip_aabb.min.x ? corners[j].x : clip_aabb.min.x;
+        //     clip_aabb.min.y = corners[j].y < clip_aabb.min.y ? corners[j].y : clip_aabb.min.y;
+        //     clip_aabb.min.z = corners[j].z < clip_aabb.min.z ? corners[j].z : clip_aabb.min.z;
+        // }
+        // spot_lights_clip_aabb[i] = clip_aabb;
+    } else {
+        return;
+    }
+
+}

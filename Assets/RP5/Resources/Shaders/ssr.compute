@@ -3,22 +3,22 @@
 
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel SSR_CS
-
+#pragma require WaveBallot
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
 RWTexture2D<float4> depth_stencil_tex;
 RWTexture2D<float4> normal_tex; // world normal
 RWTexture2D<float4> color_tex;
 RWTexture2D<float4> ssr_tex;
-
+RWTexture2D<float4> world_pos_tex;
 float3 eye_pos;
 
 [numthreads(FULL_SCREEN_CS_THREAD_X, FULL_SCREEN_CS_THREAD_Y, FULL_SCREEN_CS_THREAD_Z)] void SSR_CS(uint3 id
                                                                                                     : SV_DispatchThreadID)
 {
-    float depth = depth_stencil_tex[id.xy];
-    float3 world_pos = ReconsTructWorldPos(depth);
-    float3 normal = normal_tex[id.xy];
+    float depth = depth_stencil_tex[id.xy].x;
+    float3 world_pos = world_pos_tex[id.xy].xyz;
+    float3 normal = normal_tex[id.xy].xyz;
     float3 eye_pos;
-	color_tex[id.xy] = TonemapACES(color_tex[id.xy]); // float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
+	ssr_tex[id.xy] = float4(0.0, 0.0, 0.0, 1.0); 
 }
