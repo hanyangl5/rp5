@@ -15,6 +15,9 @@ Shader "Custuom/shading"
             #include "common.hlsl"
             #include "debug.hlsl"
             #include "common_math.hlsl"
+            #pragma require WaveBasic
+            #pragma require WaveBallot
+            #pragma require WaveVote
             #pragma vertex VS_MAIN
             #pragma fragment PS_MAIN
 
@@ -118,6 +121,32 @@ Shader "Custuom/shading"
                         radiance += (diffuse + specular) * dot(light_dir, normal) * light_color * light_intensity; // attenuation;
                     }
                 }
+                
+#ifdef SCALARIZE_LIGHT
+    uint v_cellidx;
+    uint v_lane_id = WaveGetLaneIndex();
+    uint exec_mask = -1; // 0xffffffff
+    uint current_lane_mask = 1 << v_lane_id;
+
+    while((execMask)&current_lane_mask != 0) {
+        uint s_cell_index = WaveReadLaneFirst(v_cellidx);
+        uint lane_mask = WaveActiveBallot(s_cell_index == v_cellidx);
+        exec_mask = exec_mask & ~lane_mask;
+        if (v_cellidx == s_cell_index) {
+            ProcessLightInCell(s_cell_index);
+        }
+    }
+
+    void ProcessLightInCell(uint s_cell_index) {
+        uint s_cluster_offset; // = 
+        uint s_point_light_range; // =
+
+        for (uint i = 0; i < s_point_light_range; i++) {
+            uint s_point_light_index = PointLight[s_cluster_offset + i];
+            // compute lighting
+        } 
+    }
+#endif
 
                 {
                     for (uint i = 0; i < point_light_count; i++) {
