@@ -35,7 +35,7 @@ BXDF InitBXDF(float3 N, float3 V, float3 L) {
     return bxdf;
 }
 
-float3 Diffuse_Lambert(float3 albedo) { return albedo * UNITY_INV_PI; }
+float3 Diffuse_Lambert(float3 albedo) { return albedo * _1DIVPI; }
 
 float3 Fresnel_Schlick(float3 F0, float LoM) {
     return F0 + (1.0 - F0) * pow(1 - LoM, 5);
@@ -45,7 +45,7 @@ float3 Fresnel_Schlick(float3 F0, float LoM) {
 
 float NDF_GGX(float a2, float NoM) {
     float d = (NoM * a2 - NoM) * NoM + 1.0;
-    return a2 * UNITY_INV_PI / (d * d);
+    return a2 * _1DIVPI / (d * d);
 }
 
 // float NDF_Aniso_GGX()

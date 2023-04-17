@@ -1,0 +1,139 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+#pragma require WaveBallot
+
+#include "UnityCG.cginc"
+#include "HLSLSupport.cginc"
+#include "brdf.hlsl"
+#include "light.hlsl"
+#include "UnityLightingCommon.cginc"
+#include "common.hlsl"
+#include "debug.hlsl"
+#include "common_math.hlsl"
+
+Texture2D<float4> gdepth;
+Texture2D<float4> gbuffer0; // world normal
+Texture2D<float4> gbuffer1;
+Texture2D<float4> gbuffer2;
+Texture2D<float4> gbuffer3;
+Texture2D<float4> gbuffer4;
+RWTexture2D<float4> shading_rt;
+
+uint directional_light_count;
+uint point_light_count;
+uint spot_light_count;
+uint pad0;
+float3 world_space_camera_pos;
+
+StructuredBuffer<DirectionalLight> directional_lights;
+StructuredBuffer<PointLight> point_lights;
+StructuredBuffer<SpotLight> spot_lights;
+
+[numthreads(FULL_SCREEN_CS_THREAD_X, FULL_SCREEN_CS_THREAD_Y, FULL_SCREEN_CS_THREAD_Z)] 
+void CSMain(uint3 id : SV_DispatchThreadID) {
+    /*
+    float d = UNITY_SAMPLE_DEPTH(tex2D(_gdepth, uv));
+    float d_lin = Linear01Depth(d);
+    depthOut = d;
+
+    // 反投影重建世界坐标
+    float4 ndcPos = float4(uv*2-1, d, 1);
+    float4 worldPos = mul(_vpMatrixInv, ndcPos);
+    worldPos /= worldPos.w;
+    */
+
+    float4 world_pos = gbuffer3.Load(id.xyz);
+
+    // invalid gbuffer pixel
+    if(Equal(world_pos, float3(0.0, 0.0, 0.0)) == 0.0) {
+        shading_rt[id.xy] = float4(0.0,0.0,0.0,1.0);
+        return;
+    }
+    float3 albedo = gbuffer0.Load(id.xyz).rgb;
+    float3 normal = gbuffer1.Load(id.xyz).rgb;
+    float2 mr = gbuffer4.Load(id.xyz).rg;
+
+    float roughness = mr.y;
+    float roughness2 = roughness * roughness;
+    float a2 = roughness2 * roughness2;
+    float metallic = mr.x;
+    float3 f0 = lerp(albedo, float3(0.04, 0.04, 0.04), metallic);
+    float3 v = normalize(world_space_camera_pos.xyz - world_pos);
+    
+    float3 radiance = float3(0.0, 0.0, 0.0);
+    // shading_rt[id.xy] = float4(v, 1.0);
+    // return;
+    // direct lighting
+
+    for (uint i = 0; i < directional_light_count; i++) {
+        float3 light_color = directional_lights[i].color;
+        float light_intensity = directional_lights[i].intensity;
+        float3 light_dir = normalize(-directional_lights[i].direction);
+
+        if (dot(normal, light_dir) < 0.0) {
+            continue;
+        }
+
+        BXDF bxdf = InitBXDF(normal, v, light_dir);
+        float D = NDF_GGX(a2, bxdf.NoM);
+        float G = Vis_SmithGGXCombined(a2, bxdf.NoV, bxdf.NoL);
+        float3 F = Fresnel_Schlick(f0, bxdf.VoM);
+
+        float3 diffuse = Diffuse_Lambert(albedo) *(1-metallic); // not physically correct
+        float3 specular = D * G * F;
+        radiance += (diffuse + specular) * dot(light_dir, normal) * light_color * light_intensity; // attenuation;
+    }
+
+
+    for (uint i = 0; i < point_light_count; i++) {
+        float3 light_color = point_lights[i].color;
+        float light_intensity = point_lights[i].intensity;
+        
+        float3 light_dir = point_lights[i].position - world_pos;
+
+        if (dot(normal, light_dir) < 0.0) {
+            continue;
+        }
+
+        float distance = length(light_dir);
+        light_dir = normalize(light_dir);
+
+        BXDF bxdf = InitBXDF(normal, v, light_dir);
+        float D = NDF_GGX(a2, bxdf.NoM);
+        float G = Vis_SmithGGXCombined(a2, bxdf.NoV, bxdf.NoL);
+        float3 F = Fresnel_Schlick(f0, bxdf.NoM);
+
+        float3 diffuse = Diffuse_Lambert(albedo);
+
+        float3 specular = D * G * F;
+        float distance_attenuation = DistanceFalloff(distance, point_lights[i].falloff);
+        radiance += (diffuse) * bxdf.NoL * light_color * light_intensity * distance_attenuation;
+    }
+
+    for (uint i = 0; i < spot_light_count; i++) {
+        float3 light_color = spot_lights[i].color;
+        float light_intensity = spot_lights[i].intensity;
+        
+        float3 light_dir = -spot_lights[i].direction;
+        if (dot(normal, light_dir) < 0.0) {
+            continue;
+        }
+        float distance = length(spot_lights[i].position - world_pos);
+        light_dir = normalize(light_dir);
+
+        BXDF bxdf = InitBXDF(normal, v, light_dir);
+        float D = NDF_GGX(a2, bxdf.NoM);
+        float G = Vis_SmithGGXCombined(a2, bxdf.NoV, bxdf.NoL);
+        float3 F = Fresnel_Schlick(f0, bxdf.NoM);
+
+        float3 diffuse = Diffuse_Lambert(albedo);
+
+        float3 specular = D * G * F;
+        float distance_attenuation = DistanceFalloff(distance, spot_lights[i].falloff);
+        float angle_attenuation = AngleFalloff(spot_lights[i].inner_cone, spot_lights[i].outer_cone, spot_lights[i].direction, light_dir);
+
+        radiance += (diffuse) * bxdf.NoL * light_color * light_intensity * distance_attenuation * angle_attenuation;
+    }
+    shading_rt[id.xy] = float4(radiance, 1.0);
+}
+

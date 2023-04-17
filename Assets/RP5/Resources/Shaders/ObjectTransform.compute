@@ -1,6 +1,6 @@
 #include "common.hlsl"
 #include "geometry.hlsl"
-
+#include "UnityCG.cginc"
 #pragma kernel ObjectTransform
 #pragma require WaveBallot
 #include "debug.hlsl"
@@ -38,7 +38,7 @@ void ObjectTransform(uint3 object_index : SV_DispatchThreadID) {
         clip_aabb.min = FLT_MAX;
         // covert point_lights_aabb[i] to clip space
         for (uint j = 0; j < 8; j++) {
-            corners[j] = mul(camera_view_projection, mul(point_light_to_world[i], corners[j]));
+            corners[j] = mul(UNITY_MATRIX_VP , mul(point_light_to_world[i], corners[j]));
             corners[j] /= corners[j].w;
             clip_aabb.max.x = corners[j].x > clip_aabb.max.x ? corners[j].x : clip_aabb.max.x;
             clip_aabb.max.y = corners[j].y > clip_aabb.max.y ? corners[j].y : clip_aabb.max.y;

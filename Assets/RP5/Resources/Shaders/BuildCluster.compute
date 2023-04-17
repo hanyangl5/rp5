@@ -83,12 +83,10 @@ void LightAssign (uint3 tile_index : SV_DispatchThreadID)
     }
 
     // sync inside warp
-
-    cluster_list[tile_index] = uint4(cluster_list_offset[0], (point_light_range), (spot_light_range), 0);
+    cluster_list[uint3(tile_index.x, tile_index.y, 0)] += uint4(cluster_list_offset[0], (point_light_range), (spot_light_range), 0);
 
     uint current_offset = cluster_list_offset[0];
 
-    AllMemoryBarrierWithGroupSync();
     InterlockedAdd(cluster_list_offset[0], point_light_range + spot_light_range);
 
     for (uint i = 0; i < point_light_range; i++) {
@@ -98,5 +96,4 @@ void LightAssign (uint3 tile_index : SV_DispatchThreadID)
         item_list[current_offset + point_light_range + j] = spot_light_index_list[j];
     }
     
-    AllMemoryBarrierWithGroupSync();
 }

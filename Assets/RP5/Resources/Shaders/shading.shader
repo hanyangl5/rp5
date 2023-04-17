@@ -30,11 +30,11 @@ Shader "Custuom/shading"
             StructuredBuffer<SpotLight> spot_lights;
 
             sampler2D gdepth;
-            sampler2D gbuffer_0;
-            sampler2D gbuffer_1;
-            sampler2D gbuffer_2;
-            sampler2D gbuffer_3;
-            sampler2D gbuffer_4;
+            sampler2D gbuffer0;
+            sampler2D gbuffer1;
+            sampler2D gbuffer2;
+            sampler2D gbuffer3;
+            sampler2D gbuffer4;
             //Texture2D<float4> gbuffera;
             //SamplerState sampler1; // a bilinear sampler to fetch gbuffer
 
@@ -76,15 +76,15 @@ Shader "Custuom/shading"
 
 */
 
-                float4 world_pos = tex2D(gbuffer_3, ps_in.uv);
+                float4 world_pos = tex2D(gbuffer3, ps_in.uv);
 
                 // invalid gbuffer pixel
                 if(Equal(world_pos, float3(0.0, 0.0, 0.0)) == 0.0) {
                     return float4(0.0,0.0,0.0,1.0);
                 }
-                float3 albedo = tex2D(gbuffer_0, ps_in.uv).rgb;
-                float3 normal = tex2D(gbuffer_1, ps_in.uv).rgb; // to [-1, 1]
-                float2 mr = tex2D(gbuffer_4, ps_in.uv);
+                float3 albedo = tex2D(gbuffer0, ps_in.uv).rgb;
+                float3 normal = tex2D(gbuffer1, ps_in.uv).rgb; // to [-1, 1]
+                float2 mr = tex2D(gbuffer4, ps_in.uv);
 
                 float roughness = mr.y;
                 float roughness2 = roughness * roughness;

@@ -5,12 +5,12 @@ using UnityEngine.Rendering;
 
 namespace RP5
 {
-    [CreateAssetMenu(menuName = "Rendering/RenderPipeline5Asset")]
-    public class RenderPipeline5Asset : RenderPipelineAsset
+    [CreateAssetMenu(menuName = "Rendering/RP5Asset")]
+    public class RP5Asset : RenderPipelineAsset
     {
         protected override RenderPipeline CreatePipeline()
         {
-            return new RenderPipeline5();
+            return new RP5();
         }
     }
 }
