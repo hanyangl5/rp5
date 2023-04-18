@@ -53,13 +53,13 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
         return;
     }
 
-    float3 world_pos = gbuffer3.Load(id.xyz);
+    float3 position_ws = gbuffer3.Load(id.xyz);
     // Load albedo, normal, and mr from gbuffer
     float3 albedo = gbuffer0.Load(id.xyz).rgb;
     float3 normal = gbuffer1.Load(id.xyz).rgb;
     float2 mr = gbuffer4.Load(id.xyz).rg;
     // Calculate view vector
-    float3 v = normalize(world_space_camera_pos.xyz - world_pos);
+    float3 v = normalize(world_space_camera_pos.xyz - position_ws);
 
     // Calculate roughness, metallic, and f0
     MaterialProperties mat = InitMaterial(albedo, normal, mr.x, mr.y);
@@ -87,7 +87,7 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
         float3 light_color = point_lights[i].color;
         float light_intensity = point_lights[i].intensity;
         
-        float3 light_dir = point_lights[i].position - world_pos;
+        float3 light_dir = point_lights[i].position - position_ws;
 
         // Check if the light is facing away from the surface
         if (dot(normal, light_dir) < 0.0) {
@@ -116,7 +116,7 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
             continue;
         }
 
-        float distance = length(spot_lights[i].position - world_pos);
+        float distance = length(spot_lights[i].position - position_ws);
         light_dir = normalize(light_dir);
 
         float3 lighting = Lighting(normal, v, light_dir, mat);

@@ -1,25 +1,16 @@
-using System;
-using UnityEditor;
-using UnityEditor.VersionControl;
+using System.Linq;
 using UnityEngine;
-using UnityEngine.Diagnostics;
-using UnityEngine.Experimental.GlobalIllumination;
 using UnityEngine.Rendering;
-using UnityEngine.UIElements;
-using UnityEngine.VFX;
-using static UnityEditor.Timeline.TimelinePlaybackControls;
 
 namespace RP5
 {
-    using float2 = UnityEngine.Vector2;
     using float3 = UnityEngine.Vector3;
-    using float4 = UnityEngine.Vector4;
 
     public class RP5 : RenderPipeline
     {
 
-        uint width;
-        uint height;
+        int width = 0;
+        int height = 0;
 
         FullScreenCsThreadGroup full_screen_cs_thread_group;
 
@@ -29,7 +20,7 @@ namespace RP5
         RenderTargetIdentifier[] gbufferID = new RenderTargetIdentifier[gbuffer_render_target_count];
 
         float3 camera_pos;
-        
+
         // RenderTexture previous_color_tex;
         // RenderTexture ssr_tex;
         // ComputeShader clear_buffer;
@@ -54,29 +45,30 @@ namespace RP5
         //public ComputeBuffer scene_constants_buffer = new ComputeBuffer(1, SceneConstants));
 
         LightManager light_manager = new LightManager();
+
+        PostProcess post_process_pipeline = new PostProcess();
         // ctor
         public RP5()
         {
             // Refactored to use constants for screen width and height
-            int screenWidth = Screen.width;
-            int screenHeight = Screen.height;
+            width = Screen.width;
+            height = Screen.height;
 
-            depth_rt = new RenderTexture(screenWidth, screenHeight, 24, RenderTextureFormat.Depth, RenderTextureReadWrite.Linear);
+            depth_rt = new RenderTexture(width, height, 24, RenderTextureFormat.Depth, RenderTextureReadWrite.Linear);
             // base color RGBA8888 [8, 8, 8, 8]
-            gbuffer_rt[0] = new RenderTexture(screenWidth, screenHeight, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
+            gbuffer_rt[0] = new RenderTexture(width, height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
             // normal [10, 10, 10, 2]
-            gbuffer_rt[1] = new RenderTexture(screenWidth, screenHeight, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
+            gbuffer_rt[1] = new RenderTexture(width, height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
             // motion vector[16, 16]
-            gbuffer_rt[2] = new RenderTexture(screenWidth, screenHeight, 0, RenderTextureFormat.RGHalf, RenderTextureReadWrite.Linear);
+            gbuffer_rt[2] = new RenderTexture(width, height, 0, RenderTextureFormat.RGHalf, RenderTextureReadWrite.Linear);
             // [world pos]
-            gbuffer_rt[3] = new RenderTexture(screenWidth, screenHeight, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
+            gbuffer_rt[3] = new RenderTexture(width, height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
             // metallic roughness
-            gbuffer_rt[4] = new RenderTexture(screenWidth, screenHeight, 0, RenderTextureFormat.RG16, RenderTextureReadWrite.Linear);
+            gbuffer_rt[4] = new RenderTexture(width, height, 0, RenderTextureFormat.RG16, RenderTextureReadWrite.Linear);
 
-            shading_rt = new RenderTexture(screenWidth, screenHeight, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
+            shading_rt = new RenderTexture(width, height, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
             shading_rt.enableRandomWrite = true;
 
-            // 给纹理 ID 赋值
             for (int i = 0; i < gbuffer_render_target_count; i++)
                 gbufferID[i] = gbuffer_rt[i];
             full_screen_cs_thread_group.z = 1;
@@ -84,28 +76,60 @@ namespace RP5
             for (int i = 0; i < gbuffer_render_target_count; i++)
                 Shader.SetGlobalTexture("gbuffer" + i, gbuffer_rt[i]);
 
-            width = (uint)screenWidth;
-            height = (uint)screenHeight;
-            full_screen_cs_thread_group.x = (int)(width / 8) + 1;
-            full_screen_cs_thread_group.y = (int)(height / 8) + 1;
-
-
+            full_screen_cs_thread_group.x = Utils.AlignUp(width, 8);
+            full_screen_cs_thread_group.y = Utils.AlignUp(height, 8);
+            full_screen_cs_thread_group.z = 1;
         }
 
+        private void RecreateRenderTargets(int newWidth, int newHeight)
+        {
+            width = newWidth;
+            height = newHeight;
+
+
+            // clean resource
+            if (depth_rt != null)
+            {
+                depth_rt.Release();
+            }
+            for (int i = 0; i < gbuffer_render_target_count; i++)
+            {
+                if (gbuffer_rt[i] != null)
+                    gbuffer_rt[i].Release();
+            }
+
+            if (shading_rt != null)
+            {
+                shading_rt.Release();
+            }
+
+            depth_rt = new RenderTexture(width, height, 24, RenderTextureFormat.Depth, RenderTextureReadWrite.Linear);
+            // base color RGBA8888 [8, 8, 8, 8]
+            gbuffer_rt[0] = new RenderTexture(width, height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
+            // normal [10, 10, 10, 2]
+            gbuffer_rt[1] = new RenderTexture(width, height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
+            // motion vector[16, 16]
+            gbuffer_rt[2] = new RenderTexture(width, height, 0, RenderTextureFormat.RGHalf, RenderTextureReadWrite.Linear);
+            // [world pos]
+            gbuffer_rt[3] = new RenderTexture(width, height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
+            // metallic roughness
+            gbuffer_rt[4] = new RenderTexture(width, height, 0, RenderTextureFormat.RG16, RenderTextureReadWrite.Linear);
+
+            shading_rt = new RenderTexture(width, height, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
+            shading_rt.enableRandomWrite = true;
+
+            Shader.SetGlobalTexture("shading_rt", shading_rt);
+
+            full_screen_cs_thread_group.x = Utils.AlignUp(width, 8);
+            full_screen_cs_thread_group.y = Utils.AlignUp(height, 8);
+            full_screen_cs_thread_group.z = 1;
+        }
 
 
         void LightPass(ScriptableRenderContext context)
         {
             CommandBuffer cmd = new CommandBuffer();
             cmd.name = "lightpass";
-            //Material shading_mat = new Material(Shader.Find("Custuom/shading"));
-
-            //Mesh _fullScreenMesh = CreateFullscreenMesh();
-            //cmd.SetRenderTarget(shading_rt);
-            //cmd.ClearRenderTarget(true, true, Color.black);
-            //cmd.SetViewProjectionMatrices(Matrix4x4.identity, Matrix4x4.identity);
-
-            //cmd.DrawMesh(_fullScreenMesh, Matrix4x4.identity, shading_mat, 0, 0);
             int kernel = opaque_shading.FindKernel("CSMain");
             opaque_shading.SetVector("world_space_camera_pos", camera_pos);
             opaque_shading.SetTexture(kernel, "shading_rt", shading_rt);
@@ -190,16 +214,7 @@ namespace RP5
         }
         void PostProceePass(ScriptableRenderContext context)
         {
-            //CommandBuffer pp_cmd = new CommandBuffer();
-            //pp_cmd.name = "post processing";
-
-            //int kernel = post_process.FindKernel("PostProcess_CS");
-            //post_process.SetTexture(kernel, "color_tex", shading_rt);
-            ////post_process.Dispatch(kernel, full_screen_cs_thread_group.x, full_screen_cs_thread_group.y, full_screen_cs_thread_group.z);
-            //pp_cmd.DispatchCompute(post_process, kernel, full_screen_cs_thread_group.x, full_screen_cs_thread_group.y, full_screen_cs_thread_group.z);
-
-            //context.ExecuteCommandBuffer(pp_cmd);
-
+            post_process_pipeline.Dispatch(context, shading_rt, full_screen_cs_thread_group.x, full_screen_cs_thread_group.y, full_screen_cs_thread_group.z);
         }
 
         void AntiAliasing(ScriptableRenderContext context) { }
@@ -217,20 +232,26 @@ namespace RP5
 
         protected override void Render(ScriptableRenderContext context, Camera[] cameras)
         {
-            Camera main_cam = cameras[0];
-            context.SetupCameraProperties(main_cam);
-            camera_pos = main_cam.transform.position;
-            light_manager.Setup(context, scene_constants_data);
-            
-            GeometryPasss(context, main_cam);
+            if (cameras.Count() > 0)
+            {
+                var camera = cameras[0];
+                context.SetupCameraProperties(camera);
+                camera_pos = camera.transform.position;
+                light_manager.Setup(context, scene_constants_data);
+                Shader.SetGlobalInteger("width", width);
+                Shader.SetGlobalInteger("height", height);
+                GeometryPasss(context, camera);
 
-            LightPass(context);
+                LightPass(context);
+                PostProceePass(context);
 
-            context.DrawGizmos(main_cam, GizmoSubset.PreImageEffects);
-            context.DrawGizmos(main_cam, GizmoSubset.PostImageEffects);
+                context.DrawGizmos(camera, GizmoSubset.PreImageEffects);
+                context.DrawGizmos(camera, GizmoSubset.PostImageEffects);
 
-            Blit2Screen(context);
-            context.Submit();
+                Blit2Screen(context);
+                context.Submit();
+
+            }
         }
 
     }

@@ -17,7 +17,7 @@ float3 eye_pos;
                                                                                                     : SV_DispatchThreadID)
 {
     float depth = depth_stencil_tex[id.xy].x;
-    float3 world_pos = world_pos_tex[id.xy].xyz;
+    float3 position_ws = world_pos_tex[id.xy].xyz;
     float3 normal = normal_tex[id.xy].xyz;
     float3 eye_pos;
 	ssr_tex[id.xy] = float4(0.0, 0.0, 0.0, 1.0); 

@@ -18,23 +18,24 @@ Shader "Custuom/Opaque"
         Pass
         {
             CGPROGRAM
-            #pragma vertex vert
-            #pragma fragment frag
+            #pragma pos VSMain
+            #pragma fragment PSMain
             
             #include "UnityCG.cginc"
 
-            struct appdata {
-                float4 vertex : POSITION;
+            struct VsInput {
+                float4 pos : POSITION;
                 float2 uv : TEXCOORD0;
                 float3 normal : NORMAL;
             };
-
-            struct v2f {
+            struct PsInput {
                 float2 uv : TEXCOORD0;
-                float4 vertex : SV_POSITION;
+                float4 position_clip : SV_POSITION;
+                float4 position_clip_prev : TEXCOORD01;
                 float3 normal : NORMAL;
-                float4 world_pos : TEXCOORD01;
+                float4 position_ws : TEXCOORD02;
             };
+            typedef PsInput VsOutput; 
 
             sampler2D _albedo_tex;
             float4 _albedo_tex_ST;
@@ -42,17 +43,18 @@ Shader "Custuom/Opaque"
             sampler2D _roughness_tex;
             sampler2D _normal_map;
 
-            v2f vert(appdata v) {
-                v2f o;
-                o.vertex = UnityObjectToClipPos(v.vertex);
+            VsOutput VSMain(VsInput v) {
+                VsOutput o;
+                o.position_clip = UnityObjectToClipPos(v.pos);
+                o.position_clip_prev = UnityObjectToClipPos(v.pos); // previous mvp
                 o.uv = TRANSFORM_TEX(v.uv, _albedo_tex);
                 o.normal = UnityObjectToWorldNormal(v.normal);
-                o.world_pos = mul(unity_ObjectToWorld, v.vertex);
+                o.position_ws = mul(unity_ObjectToWorld, v.pos);
                 return o;
             }
 
-            void frag(
-                v2f i,
+            void PSMain(
+                PsInput i,
                 out float4 gbuffer0 : SV_Target0,
                 out float4 gbuffer1 : SV_Target1,
                 out float2 gbuffer2 : SV_Target2,
@@ -67,7 +69,7 @@ Shader "Custuom/Opaque"
                 gbuffer0 = float4(color.rgb, 0.0);
                 gbuffer1 = float4(normal, 0.0);
                 gbuffer2 = float2(1, 1);
-                gbuffer3 = float4(i.world_pos);
+                gbuffer3 = float4(i.position_ws);
                 gbuffer4 = float2(m, r); // metalic roughness
             }
             ENDCG

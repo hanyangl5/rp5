@@ -3,6 +3,7 @@
 #pragma kernel Vignette
 #pragma kernel DepthOfField
 #pragma kernel FilmGrain
+#pragma kernel ColorGrading
 
 #pragma require WaveBallot // WaveActiveCountBits
 
@@ -10,18 +11,20 @@
 #include "common_math.hlsl"
 #include "PostProcessHelper.hlsl"
 
-SamplerState my_point_clamp_sampler; // https://docs.unity3d.com/Manual/SL-SamplerStates.html
+SamplerState my_linear_clamp_sampler; // https://docs.unity3d.com/Manual/SL-SamplerStates.html
 //#pragma kernel ColorAjustment
 
-Texture2D<float4> color_tex_in;
-RWTexture2D<float4> color_tex_out;
+RWTexture2D<float4> color_tex;
+
+int width;
+int height;
 
 [numthreads(FULL_SCREEN_CS_THREAD_X, FULL_SCREEN_CS_THREAD_Y, FULL_SCREEN_CS_THREAD_Z)] 
 void ToneMapping(uint3 id : SV_DispatchThreadID)
 {
-	float4 result = color_tex_in[id.xy];
+	float4 result = color_tex[id.xy];
 	result.rgb = _TonemapACES(result.rgb);
-	color_tex_out[id.xy] = result;
+	color_tex[id.xy] = result;
 }
 
 Texture2D<float2> gbuffer_velocity;
@@ -31,10 +34,10 @@ int motion_blur_sample_count;
 void MotionBlur(uint3 id : SV_DispatchThreadID)
 {
     float2 velocity = gbuffer_velocity[id.xy].xy;
-	float4 result = color_tex_in[id.xy];
+	float4 result = color_tex[id.xy];
 
-	result.rgb = _MotionBlur(result.rgb, velocity, motion_blur_sample_count, color_tex_in, my_point_clamp_sampler);
-	color_tex_out[id.xy] = result;
+	//result.rgb = _MotionBlur(result.rgb, velocity, motion_blur_sample_count, color_tex, my_linear_clamp_sampler);
+	color_tex[id.xy] = result;
 }
 
 float vignette_strength;
@@ -43,11 +46,11 @@ float vignette_size;
 [numthreads(FULL_SCREEN_CS_THREAD_X, FULL_SCREEN_CS_THREAD_Y, FULL_SCREEN_CS_THREAD_Z)] 
 void Vignette(uint3 id : SV_DispatchThreadID)
 {
-	float4 result = color_tex_in[id.xy];
-	result.rgb = _Vignette(result.rgb, vignette_strength, vignette_size);
-	color_tex_out[id.xy] = result;
+	float4 result = color_tex[id.xy];
+	float2 uv = (id.xy + 0.5) / float2(width, height);
+	result.rgb = _Vignette(result.rgb, uv, vignette_strength, vignette_size);
+	color_tex[id.xy] = result;
 } 
-
 
 float focus_distance;
 float focus_range;
@@ -60,25 +63,23 @@ float aperture;
 [numthreads(FULL_SCREEN_CS_THREAD_X, FULL_SCREEN_CS_THREAD_Y, FULL_SCREEN_CS_THREAD_Z)] 
 void DepthOfField(uint3 id : SV_DispatchThreadID)
 {
-	float4 result = color_tex_in[id.xy];
-	result.rgb = _DepthOfField(result.rgb, focus_distance, focus_range, aperture);
-	color_tex_out[id.xy] = result;
+	float4 result = color_tex[id.xy];
+    float2 uv = (id.xy + 0.5) / float2(width, height); // calculate the UV coordinates for the noise texture
+	result.rgb = _DepthOfField(result.rgb, uv, focus_distance, focus_range, aperture);
+	color_tex[id.xy] = result;
 }
 
 float grain_strength;
 float grain_size;
-float2 random_offset;
 
 [numthreads(FULL_SCREEN_CS_THREAD_X, FULL_SCREEN_CS_THREAD_Y, FULL_SCREEN_CS_THREAD_Z)] 
 void FilmGrain(uint3 id : SV_DispatchThreadID)
 {
-    //float2 random_offset = float2(0.0, 0.0); // initialize the random offset to (0, 0)
-    //float2 noise_uv = id.xy / float2(color_tex_in.GetDimensions().xy); // calculate the UV coordinates for the noise texture
-    //float noise = frac(sin(dot(noise_uv, float2(12.9898, 78.233))) * 43758.5453); // generate a random value for the noise
-    //random_offset = float2(noise, noise) * 2.0 - 1.0; // scale the noise to the range [-1, 1] and assign it to the random offset
-	//float4 result = color_tex_in[id.xy];
-	//result.rgb = FilmGrain(result.rgb, grain_strength, grain_size, noise_uv, random_offset);
-	//color_tex_out[id.xy] = result;
+    float2 noise_uv = (id.xy + 0.5) / float2(width, height); // calculate the UV coordinates for the noise texture
+    float noise = frac(sin(dot(noise_uv, float2(12.9898, 78.233))) * 43758.5453); // generate a random value for the noise
+	float4 result = color_tex[id.xy];
+	result.rgb = _FilmGrain(result.rgb, grain_strength, noise);
+	color_tex[id.xy] = result;
 } 
 
 uint lut_size;
@@ -87,7 +88,7 @@ Texture3D<float4> color_grading_lut;
 [numthreads(FULL_SCREEN_CS_THREAD_X, FULL_SCREEN_CS_THREAD_Y, FULL_SCREEN_CS_THREAD_Z)] 
 void ColorGrading(uint3 id : SV_DispatchThreadID)
 {
-	float4 result = color_tex_in[id.xy];
-	result.rgb = _ColorGrading(result.rgb, color_grading_lut, my_point_clamp_sampler, lut_size);
-	color_tex_out[id.xy] = result;
+	float4 result = color_tex[id.xy];
+	result.rgb = _ColorGrading(result.rgb, color_grading_lut, my_linear_clamp_sampler, lut_size);
+	color_tex[id.xy] = result;
 }

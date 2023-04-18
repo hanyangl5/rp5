@@ -28,23 +28,21 @@ float3 GammaCorrection(float3 x, float gamma) {
 // linear_sampler: the sampler state to use for linear sampling
 // lut_size: the size of the lookup table
 float3 _ColorGrading(float3 x, Texture3D<float4> lut, SamplerState sampler, uint lut_size) {
-	float3 uvw = x * ((lut_size - 1) / lut_size) + (0.5f / lut_size); // calculate the UVW coordinates for the lookup table
-	float3 result = lut.SampleLevel(sampler, uvw, 0).rgb; // sample the lookup table and return the RGB value
+	float3 result = lut.SampleLevel(sampler, x, 0).rgb; // sample the lookup table and return the RGB value
 	return result;
 }
 
 // Function to add film grain effect to an image
-float3 _FilmGrain(float3 color, float grain_strength, float grain_size, float2 uv, float2 random_offset)
+float3 _FilmGrain(float3 color, float grain_strength, float noise)
 {
-    // Generate random value for grain
-    float noise = frac(sin(dot(uv + random_offset, float2(12.9898, 78.233))) * 43758.5453);
-    
+    // TODO(hylu): vary with time, more shapes
     // Calculate grain color
     float3 grain_color = float3(noise, noise, noise);
-    grain_color *= grain_strength * (1.0 - smoothstep(0.0, 1.0, grain_size));
+    float luminance = dot(color.rgb, float3(0.2126, 0.7152, 0.0722));
+    grain_color *=  luminance;;
     
     // Add grain to original color
-    return color + grain_color;
+    return lerp(color, grain_color, saturate(grain_strength));
 }
 
 // Function to apply vignette effect to an image
@@ -55,29 +53,26 @@ float3 _FilmGrain(float3 color, float grain_strength, float grain_size, float2 u
 // x: the input color
 // vignette_strength: the strength of the vignette effect
 // vignette_size: the size of the vignette effect
-float3 _Vignette(float3 x, float vignette_strength, float vignette_size)
+float3 _Vignette(float3 x, float2 uv, float vignette_strength, float vignette_size)
 {
-    // Calculate the UV coordinates
-    float2 uv = x.xy;
     // Calculate the center of the image
     float2 center = float2(0.5, 0.5);
     // Calculate the distance from the center to the current pixel
     float distance = length(uv - center);
     // Calculate the vignette value using smoothstep
-    float vignette = smoothstep(vignette_size, 0.0, distance);
+    float vignette = smoothstep(0.0, vignette_size, distance);
     // Apply the vignette effect to the input color
-    return x * (1.0 - vignette_strength * vignette);
-} 
+    return x * (1.0 - saturate(vignette_strength) * vignette);
+}
 
 // Function to apply depth of field effect to an image
 // x: the input color
 // focus_distance: the distance to the focal point
 // focus_range: the range of distances in focus
 // aperture: the size of the aperture
-float3 _DepthOfField(float3 x, float focus_distance, float focus_range, float aperture)
+float3 _DepthOfField(float3 x, float2 uv, float focus_distance, float focus_range, float aperture)
 {
     // Calculate the UV coordinates
-    float2 uv = x.xy;
     // Calculate the center of the image
     float2 center = float2(0.5, 0.5);
     // Calculate the distance from the center to the current pixel

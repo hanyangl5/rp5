@@ -16,38 +16,42 @@ Shader "Custuom/OpaqueFromVector"
         Pass
         {
             CGPROGRAM
-            #pragma vertex vert
-            #pragma fragment frag
+            #pragma vertex VSMain
+            #pragma fragment PSMain
             
             #include "UnityCG.cginc"
 
-            struct appdata {
-                float4 vertex : POSITION;
+            struct VsInput {
+                float4 pos : POSITION;
                 float2 uv : TEXCOORD0;
                 float3 normal : NORMAL;
             };
 
-            struct v2f {
+            struct PsInput {
                 float2 uv : TEXCOORD0;
-                float4 vertex : SV_POSITION;
+                float4 position_clip : SV_POSITION;
+                float4 position_clip_prev : TEXCOORD01;
                 float3 normal : NORMAL;
-                float4 world_pos : TEXCOORD01;
+                float4 position_ws : TEXCOORD02;
             };
-
+            typedef PsInput VsOutput; 
+            
             float4 _albedo;
             float4 _emissive;
             float _metallic;
             float _roughness;
-            v2f vert(appdata v) {
-                v2f o;
-                o.vertex = UnityObjectToClipPos(v.vertex);
+
+            VsOutput VSMain(VsInput v) {
+                VsOutput o;
+                o.position_clip = UnityObjectToClipPos(v.pos);
+                o.position_clip_prev = UnityObjectToClipPos(v.pos); // previous mvp
                 o.normal = UnityObjectToWorldNormal(v.normal);
-                o.world_pos = mul(unity_ObjectToWorld, v.vertex);
+                o.position_ws = mul(unity_ObjectToWorld, v.pos);
                 return o;
             }
 
-            void frag(
-                v2f i,
+            void PSMain(
+                PsInput i,
                 out float4 gbuffer0 : SV_Target0,
                 out float4 gbuffer1 : SV_Target1,
                 out float2 gbuffer2 : SV_Target2,
@@ -59,7 +63,7 @@ Shader "Custuom/OpaqueFromVector"
                 gbuffer0 = _albedo;
                 gbuffer1 = float4(normal, 0);
                 gbuffer2 = float2(1, 1);
-                gbuffer3 = float4(i.world_pos);
+                gbuffer3 = float4(i.position_ws);
                 gbuffer4 = float2(_metallic, _roughness); // metalic roughness
             }
             ENDCG
