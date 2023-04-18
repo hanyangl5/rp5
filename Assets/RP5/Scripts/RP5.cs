@@ -42,18 +42,11 @@ namespace RP5
 
         // ComputeShader bloom_cs;
 
-        // ComputeShader dof;
         ComputeShader opaque_shading = Resources.Load<ComputeShader>("Shaders/Shading");
         RenderTexture shading_rt;
-        // post processing pass
-
-        //ComputeShader tone_mapping_cs; // hdr to ldr
-        //ComputeShader color_grading_cs; // custuom color correction
-        //ComputeShader film_grain_cs; // grain
-        //ComputeShader gamma_cs; // gamm setting
 
         // TODO single pass post process
-        // ComputeShader all_in_one_post_process_cs;
+        ComputeShader post_process_cs;
 
         // assets
 

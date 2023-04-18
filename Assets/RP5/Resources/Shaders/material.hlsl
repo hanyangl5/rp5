@@ -11,14 +11,17 @@ struct MaterialProperties {
     float metallic;  // 0
     float roughness; // 0.5
     float roughness2;
+    float a2;
     float3 emissive;
-
-    // disney
-
-    float anisotropic;     // 0
-    float sheen;           // 0
-    float sheen_tint;      // 0.5
-    float subsurface;      // 0
-    float clearcoat;       // 0
-    float clearcoat_gloss; // 0.5
 };
+
+MaterialProperties InitMaterial(float3 albedo, float3 normal, float metallic, float roughness) {
+    MaterialProperties mat;
+    mat.albedo = albedo;
+    mat.roughness = roughness;
+    mat.roughness2 = roughness * roughness;
+    mat.a2 = mat.roughness2 * mat.roughness2;
+    mat.metallic = metallic;
+    mat.f0 = lerp(albedo, float3(0.04, 0.04, 0.04), metallic);
+    return mat;
+}
