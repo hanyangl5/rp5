@@ -59,6 +59,8 @@ namespace RP5
 
         LightManager light_manager = new LightManager();
 
+        TAA taa_pass = new TAA();
+
         PostProcess post_process_pipeline = new PostProcess();
 
 
@@ -175,6 +177,12 @@ namespace RP5
             // Calculate view projection matrix
             Matrix4x4 view = camera.worldToCameraMatrix;
             Matrix4x4 projection = GL.GetGPUProjectionMatrix(camera.projectionMatrix, true);
+            float2 jitter_offset = taa_pass.GetJitterOffset();
+            float offset_x = (jitter_offset.x - 0.5f) / width;
+            float offset_y = (jitter_offset.y - 0.5f) / height;
+
+            proj._13 += offset_x;
+            proj._23 += offset_y;
             Matrix4x4 view_projection = projection * view;
 
             //camera.previousViewProjectionMatrix;
@@ -185,6 +193,7 @@ namespace RP5
             Shader.SetGlobalMatrix("inverse_view_projection", view_projection.inverse);
 
             view_projection_prev = view_projection;
+            jitter_offset_prev = jitter_offset;
 
             // 绘制
             context.DrawRenderers(culling_result, ref drawingSettings, ref filteringSettings);
