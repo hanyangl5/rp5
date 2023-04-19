@@ -7,8 +7,8 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: Ball
-  m_Shader: {fileID: 4800000, guid: a85f7d6479a947642a0ad3a185504161, type: 3}
+  m_Name: Ball2
+  m_Shader: {fileID: 4800000, guid: b4f5261af6de7ed44a7f6042ee041850, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -59,42 +59,6 @@ Material:
         m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
-    - _albedo_tex:
-        m_Texture: {fileID: 2800000, guid: 39b2911a7124d9b4e8b0e73ee20f8105, type: 3}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
-    - _ao_map_tex:
-        m_Texture: {fileID: 0}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
-    - _base_color:
-        m_Texture: {fileID: 2800000, guid: b245a94ccfbc2b84583ea5a0723aebe1, type: 3}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
-    - _emissive_tex:
-        m_Texture: {fileID: 0}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
-    - _metallic_roughness:
-        m_Texture: {fileID: 2800000, guid: 5baa12c20dd33494786f0b1aa7b7c746, type: 3}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
-    - _metallic_roughness_tex:
-        m_Texture: {fileID: 0}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
-    - _metallic_tex:
-        m_Texture: {fileID: 2800000, guid: a32dfe6be1cc78c4c9d7be225def7177, type: 3}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
-    - _normal_map:
-        m_Texture: {fileID: 0}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
-    - _roughness_tex:
-        m_Texture: {fileID: 2800000, guid: ec61ee028e3bdaa4eb9949e53431d8a6, type: 3}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
     - _BumpScale: 1
@@ -112,16 +76,13 @@ Material:
     - _SpecularHighlights: 1
     - _SrcBlend: 1
     - _UVSec: 0
-    - _Use_Normal_Map: 1
     - _ZWrite: 1
-    - _albedo: 1
-    - _emissive: 0
-    - _emissive_intensity: 0
-    - _metallic: 0.846
-    - _roughness: 0.09
+    - _emissive_intensity: 1
+    - _metallic: 1
+    - _roughness: 0
     m_Colors:
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _albedo: {r: 1, g: 1, b: 1, a: 1}
-    - _emissive: {r: 1, g: 1, b: 1, a: 1}
+    - _emissive: {r: 1, g: 0, b: 0, a: 1}
   m_BuildTextureStacks: []

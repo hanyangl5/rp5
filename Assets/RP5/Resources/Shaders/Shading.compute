@@ -26,6 +26,11 @@ uint spot_light_count;
 uint pad0;
 float3 world_space_camera_pos;
 
+float4x4 inverse_view_projection;
+
+uint width;
+uint height;
+
 StructuredBuffer<DirectionalLight> directional_lights;
 StructuredBuffer<PointLight> point_lights;
 StructuredBuffer<SpotLight> spot_lights;
@@ -44,25 +49,35 @@ float3 Lighting(float3 normal, float3 v, float3 light_dir, MaterialProperties ma
 
 [numthreads(FULL_SCREEN_CS_THREAD_X, FULL_SCREEN_CS_THREAD_Y, FULL_SCREEN_CS_THREAD_Z)] 
 void CSMain(uint3 id : SV_DispatchThreadID) {
-
-    float4 depth = gdepth.Load(id.xyz);
-
-    // Check if the gbuffer pixel is invalid
-    if(Equal(depth.w, 0.0) == 0.0) {
+    if (id.x >= width || id.y >= height) {
         shading_rt[id.xy] = float4(0.0,0.0,0.0,1.0);
         return;
     }
+    float depth = gdepth.Load(id.xyz).r;
+    // Check if the gbuffer pixel is invalid
+    if(Equal(depth, 0.0) == 0.0) {
+        shading_rt[id.xy] = float4(0.0,0.0,0.0,1.0);
+        return;
+    }
+ 
+    float2 uv = (float2(id.xy) + 0.5) / float2(width, height);
+    uv = uv * 2.0 - 1.0;
+    float4 clipPos = float4(uv.x, uv.y, depth, 1.0);
+    clipPos.y = -clipPos.y;
+    float4 worldPos = mul(inverse_view_projection, clipPos);
+    worldPos.xyz /= worldPos.w;
 
-    float3 position_ws = gbuffer3.Load(id.xyz);
+    float3 position_ws = worldPos;
     // Load albedo, normal, and mr from gbuffer
     float3 albedo = gbuffer0.Load(id.xyz).rgb;
     float3 normal = gbuffer1.Load(id.xyz).rgb;
+    float3 emissive = gbuffer3.Load(id.xyz).rgb;
     float2 mr = gbuffer4.Load(id.xyz).rg;
     // Calculate view vector
     float3 v = normalize(world_space_camera_pos.xyz - position_ws);
 
     // Calculate roughness, metallic, and f0
-    MaterialProperties mat = InitMaterial(albedo, normal, mr.x, mr.y);
+    MaterialProperties mat = InitMaterial(albedo, normal, mr.x, mr.y, emissive);
 
     float3 radiance = float3(0.0, 0.0, 0.0);
 
@@ -127,6 +142,7 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
         radiance += lighting * light_color * light_intensity * distance_attenuation * angle_attenuation;
     }
 
+    radiance += mat.emissive;
     // Set the output color
     shading_rt[id.xy] = float4(radiance, 1.0);
 }

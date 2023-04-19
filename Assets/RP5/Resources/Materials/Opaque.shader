@@ -9,6 +9,7 @@ Shader "Custuom/Opaque"
         _roughness_tex("roughness tex", 2D) = "dark" {}
         [Normal]_normal_map("normal map", 2D) = "dark" {}
         _ao_map_tex("ao map", 2D) = "dark" {}
+        _emissive_intensity ("emissive_intensity", float) = 1.0
     
     }
     SubShader
@@ -42,11 +43,12 @@ Shader "Custuom/Opaque"
             sampler2D _metallic_tex;
             sampler2D _roughness_tex;
             sampler2D _normal_map;
-
+            sampler2D _emissive_tex;
             float4x4 view_projection_prev;
             float4x4 view_projection;
             float2 jitter_offset_prev;
             float2 jitter_offset;
+            float _emissive_intensity;
 
             VsOutput VSMain(VsInput v) {
                 VsOutput o;
@@ -65,18 +67,19 @@ Shader "Custuom/Opaque"
                 out float2 gbuffer2 : SV_Target2,
                 out float4 gbuffer3 : SV_Target3,
                 out float2 gbuffer4 : SV_Target4) {
-                float4 color = tex2D(_albedo_tex, i.uv);
+                float4 albedo = tex2D(_albedo_tex, i.uv);
                 float m = tex2D(_metallic_tex, i.uv).r;
                 float r = tex2D(_roughness_tex, i.uv).r;
+                float3 emissive = tex2D(_emissive_tex, i.uv).rgb;
                 //float4 normal = tex2D(_normal_map, i.uv);
                 float3 normal = normalize(i.normal);
-                color.rgb = pow(color.rgb,float3(2.2, 2.2, 2.2));
-                gbuffer0 = float4(color.rgb, 0.0);
+                albedo.rgb = pow(albedo.rgb,float3(2.2, 2.2, 2.2));
+                gbuffer0 = float4(albedo.rgb, 0.0);
                 gbuffer1 = float4(normal, 0.0);
                 // mv should be in [-1, 1]
                 gbuffer2 = ((i.position_clip / i.position_clip.w - jitter_offset)  - (i.position_clip_prev / i.position_clip_prev.w - jitter_offset_prev)) * 0.5;
 
-                gbuffer3 = float4(i.position_ws);
+                gbuffer3 = float4(emissive * _emissive_intensity, 1.0);
                 gbuffer4 = float2(m, r); // metalic roughness
             }
             ENDCG

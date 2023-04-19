@@ -7,7 +7,7 @@ Shader "Custuom/OpaqueFromVector"
         _roughness ("rougness", Range (0.0, 1.0)) = 0.5
         _albedo ("albedo", Color) = (1.0, 1.0, 1.0)
         _emissive ("emissive", Color) = (0.0, 0.0, 0.0)
-
+        _emissive_intensity ("emissive_intensity", float) = 1.0
     }
     SubShader
     {
@@ -38,9 +38,9 @@ Shader "Custuom/OpaqueFromVector"
             
             float4 _albedo;
             float4 _emissive;
+            float _emissive_intensity;
             float _metallic;
             float _roughness;
-
             float4x4 view_projection_prev;
             float4x4 view_projection;
             float2 jitter_offset_prev;
@@ -66,11 +66,11 @@ Shader "Custuom/OpaqueFromVector"
                 //float4 normal = tex2D(_normal_map, i.uv);
                 float3 normal = normalize(i.normal); // to [0, 1]
 
-                gbuffer0 = _albedo;
+                gbuffer0 = float4(_albedo.rgb, 0);
                 gbuffer1 = float4(normal, 0);
                 // mv should be in [-1, 1]
                 gbuffer2 = ((i.position_clip / i.position_clip.w - jitter_offset)  - (i.position_clip_prev / i.position_clip_prev.w - jitter_offset_prev)) * 0.5;
-                gbuffer3 = float4(i.position_ws);
+                gbuffer3 = float4(_emissive * _emissive_intensity);
                 gbuffer4 = float2(_metallic, _roughness); // metalic roughness
             }
             ENDCG
