@@ -18,7 +18,7 @@ Shader "Custuom/Opaque"
         Pass
         {
             CGPROGRAM
-            #pragma pos VSMain
+            #pragma vertex VSMain
             #pragma fragment PSMain
             
             #include "UnityCG.cginc"
@@ -43,13 +43,18 @@ Shader "Custuom/Opaque"
             sampler2D _roughness_tex;
             sampler2D _normal_map;
 
+            float4x4 view_projection_prev;
+            float4x4 view_projection;
+            float2 jitter_offset_prev;
+            float2 jitter_offset;
+
             VsOutput VSMain(VsInput v) {
                 VsOutput o;
-                o.position_clip = UnityObjectToClipPos(v.pos);
-                o.position_clip_prev = UnityObjectToClipPos(v.pos); // previous mvp
-                o.uv = TRANSFORM_TEX(v.uv, _albedo_tex);
+                float4 postion_ws = mul(unity_ObjectToWorld, v.pos);
+                o.position_clip = mul(view_projection, postion_ws);
+                o.position_clip_prev = mul(view_projection_prev, postion_ws);
                 o.normal = UnityObjectToWorldNormal(v.normal);
-                o.position_ws = mul(unity_ObjectToWorld, v.pos);
+                o.position_ws = postion_ws;
                 return o;
             }
 
@@ -68,7 +73,9 @@ Shader "Custuom/Opaque"
                 color.rgb = pow(color.rgb,float3(2.2, 2.2, 2.2));
                 gbuffer0 = float4(color.rgb, 0.0);
                 gbuffer1 = float4(normal, 0.0);
-                gbuffer2 = float2(1, 1);
+                // mv should be in [-1, 1]
+                gbuffer2 = ((i.position_clip / i.position_clip.w - jitter_offset)  - (i.position_clip_prev / i.position_clip_prev.w - jitter_offset_prev)) * 0.5;
+
                 gbuffer3 = float4(i.position_ws);
                 gbuffer4 = float2(m, r); // metalic roughness
             }

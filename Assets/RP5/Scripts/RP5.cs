@@ -1,10 +1,11 @@
-using System.Linq;
+
 using UnityEngine;
 using UnityEngine.Rendering;
 
 namespace RP5
 {
     using float3 = UnityEngine.Vector3;
+    using float2 = UnityEngine.Vector2;
 
     public class RP5 : RenderPipeline
     {
@@ -20,6 +21,11 @@ namespace RP5
         RenderTargetIdentifier[] gbufferID = new RenderTargetIdentifier[gbuffer_render_target_count];
 
         float3 camera_pos;
+
+        Matrix4x4 view_projection_prev;
+        Matrix4x4 view_projection;
+        float2 jitter_offset_prev  = new float2(0.0f, 0.0f);
+        float2 jitter_offset = new float2(0.0f, 0.0f);
 
         // RenderTexture previous_color_tex;
         // RenderTexture ssr_tex;
@@ -157,12 +163,22 @@ namespace RP5
 
             camera.TryGetCullingParameters(out var cullingParameters);
             var culling_result = context.Cull(ref cullingParameters);
-
+            
             // config settings
             ShaderTagId shaderTagId = new ShaderTagId("geometry");   // 使用 LightMode 为 gbuffer 的 shader
             SortingSettings sortingSettings = new SortingSettings(camera);
             DrawingSettings drawingSettings = new DrawingSettings(shaderTagId, sortingSettings);
             FilteringSettings filteringSettings = FilteringSettings.defaultValue;
+            // Set viewprojection and jitter offsets
+            
+           Matrix4x4 vp = camera.projectionMatrix;
+
+            Shader.SetGlobalMatrix("view_projection_prev", view_projection_prev);
+            Shader.SetGlobalMatrix("view_projection", vp);
+            Shader.SetGlobalVector("jitter_offset_prev", jitter_offset_prev); 
+            Shader.SetGlobalVector("jitter_offset", jitter_offset); 
+
+            view_projection_prev = view_projection;
 
             // 绘制
             context.DrawRenderers(culling_result, ref drawingSettings, ref filteringSettings);
