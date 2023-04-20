@@ -42,9 +42,9 @@ float3 Lighting(float3 normal, float3 v, float3 light_dir, MaterialProperties ma
     float G = Vis_SmithGGXCombined(mat.a2, bxdf.NoV, bxdf.NoL);
     float3 F = Fresnel_Schlick(mat.f0, bxdf.VoM);
 
-    float3 diffuse = Diffuse_Lambert(mat.albedo) * (1 - mat.metallic); // TODO(hylu): layered material?
+    float3 diffuse = Diffuse_Lambert(mat.albedo); //(1 - mat.metallic); // TODO(hylu): layered material?
     float3 specular = D * G * F;
-    return (diffuse + specular) * bxdf.NoL; 
+    return ( specular) * bxdf.NoL; 
 }
 
 [numthreads(FULL_SCREEN_CS_THREAD_X, FULL_SCREEN_CS_THREAD_Y, FULL_SCREEN_CS_THREAD_Z)] 

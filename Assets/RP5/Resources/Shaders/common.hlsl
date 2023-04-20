@@ -18,4 +18,6 @@
 #define FLT_MIN -3.4028235e-38
 #define FLT_MAX 3.4028235e+38
 
+float Luminance(float3 color) { return 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b; }
+
 #endif

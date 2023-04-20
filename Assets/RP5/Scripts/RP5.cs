@@ -86,6 +86,9 @@ namespace RP5
             shading_rt = new RenderTexture(width, height, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
             shading_rt.enableRandomWrite = true;
 
+            history_color = new RenderTexture(width, height, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
+            history_depth = new RenderTexture(width, height, 24, RenderTextureFormat.Depth, RenderTextureReadWrite.Linear);
+
             for (int i = 0; i < gbuffer_render_target_count; i++)
                 gbufferID[i] = gbuffer_rt[i];
             tg.z = 1;
@@ -161,7 +164,7 @@ namespace RP5
             context.ExecuteCommandBuffer(cmd);
         }
 
-
+        // Geometry pass function
         void GeometryPasss(ScriptableRenderContext context, Camera camera)
         {
             camera.TryGetCullingParameters(out var cullingParameters);
@@ -178,11 +181,14 @@ namespace RP5
             Matrix4x4 view = camera.worldToCameraMatrix;
             Matrix4x4 projection = GL.GetGPUProjectionMatrix(camera.projectionMatrix, true);
             float2 jitter_offset = taa_pass.GetJitterOffset();
+
+            // divide resolution, offset inside one pixel
             float offset_x = (jitter_offset.x - 0.5f) / width;
             float offset_y = (jitter_offset.y - 0.5f) / height;
 
-            proj._13 += offset_x;
-            proj._23 += offset_y;
+            // offset the projection matrix
+            projection[0, 2] += offset_x;
+            projection[1, 2] += offset_y;
             Matrix4x4 view_projection = projection * view;
 
             //camera.previousViewProjectionMatrix;
@@ -195,7 +201,7 @@ namespace RP5
             view_projection_prev = view_projection;
             jitter_offset_prev = jitter_offset;
 
-            // 绘制
+            // Draw the renderers
             context.DrawRenderers(culling_result, ref drawingSettings, ref filteringSettings);
 
         }
@@ -248,7 +254,10 @@ namespace RP5
             post_process_pipeline.Dispatch(context, shading_rt, tg.x, tg.y, tg.z);
         }
 
-        void AntiAliasing(ScriptableRenderContext context) { }
+        void AntiAliasing(ScriptableRenderContext context) {
+            taa_pass.BindResources(shading_rt, history_color, gbuffer_rt[2]);
+            taa_pass.Dispatch(context, tg.x, tg.y, tg.z);
+        }
 
         void Blit2Screen(ScriptableRenderContext context)
         {
@@ -269,7 +278,8 @@ namespace RP5
             cmd.SetRenderTarget(gbufferID, depth_rt);
             cmd.ClearRenderTarget(true, true, Color.black);
             context.ExecuteCommandBuffer(cmd); // submit to gpu 
-
+            cmd.SetRenderTarget(shading_rt);
+            cmd.ClearRenderTarget(true, true, Color.black);
             Shader.SetGlobalInteger("width", width);
             Shader.SetGlobalInteger("height", height);
 
@@ -308,6 +318,17 @@ namespace RP5
                 LightPass(context);
 
                 //Bloom(context);
+
+                // copy shading result before postprocessing for some effects using history color buffer. TAA/SSR
+                {
+                    CommandBuffer cmd = new CommandBuffer();
+                    cmd.CopyTexture(shading_rt, history_color);
+                    //cmd.Blit(shading_rt, history_color);
+                    context.ExecuteCommandBuffer(cmd);
+                    
+                }
+
+                AntiAliasing(context);
 
                 //PostProceePass(context);
 
