@@ -1,0 +1,9 @@
+#pragma kernel ClearBuffer
+
+RWStructuredBuffer<uint> cluster_list_offset;
+
+[numthreads(64,1,1)]
+void ClearBuffer (uint3 id : SV_DispatchThreadId)
+{
+    cluster_list_offset[0] = 0;
+}

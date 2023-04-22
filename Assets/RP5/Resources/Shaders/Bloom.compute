@@ -1,9 +1,0 @@
-#pragma kernel Bloom
-
-RWTexture2D<float4> color_tex;
-
-[numthreads(8, 8, 1)]
-void Bloom (uint3 id : SV_DispatchThreadID)
-{
-
-}

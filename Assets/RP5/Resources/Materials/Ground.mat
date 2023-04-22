@@ -8,7 +8,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: Ground
-  m_Shader: {fileID: 4800000, guid: b4f5261af6de7ed44a7f6042ee041850, type: 3}
+  m_Shader: {fileID: 4800000, guid: e888bdddc6366b44282d638e7b90bfef, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -78,11 +78,11 @@ Material:
     - _UVSec: 0
     - _ZWrite: 1
     - _emissive_intensity: 0
-    - _metallic: 0.423
-    - _roughness: 0.5
+    - _metallic: 0
+    - _roughness: 1
     m_Colors:
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
-    - _albedo: {r: 1, g: 1, b: 1, a: 1}
+    - _albedo: {r: 0.0754717, g: 0.0754717, b: 0.0754717, a: 1}
     - _emissive: {r: 0, g: 0, b: 0, a: 1}
   m_BuildTextureStacks: []

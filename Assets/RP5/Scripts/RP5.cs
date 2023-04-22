@@ -1,6 +1,9 @@
 using System.Linq;
+using Unity.Mathematics;
 using UnityEditor.Build;
 using UnityEngine;
+using UnityEngine.Analytics;
+using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 
 namespace RP5
@@ -61,6 +64,7 @@ namespace RP5
 
         TAA taa_pass = new TAA();
 
+        MotionVector mv_pass = new MotionVector();
         PostProcess post_process_pipeline = new PostProcess();
 
 
@@ -99,6 +103,8 @@ namespace RP5
             tg.x = Utils.AlignUp(width, 8);
             tg.y = Utils.AlignUp(height, 8);
             tg.z = 1;
+
+            mv_pass.SetUp(width, height);
         }
 
         private void RecreateRenderTargets(int newWidth, int newHeight)
@@ -124,6 +130,7 @@ namespace RP5
             }
 
             depth_rt = new RenderTexture(width, height, 24, RenderTextureFormat.Depth, RenderTextureReadWrite.Linear);
+            //depth_rt.depthStencilFormat = GraphicsFormat.D32_SFloat_S8_UInt;
             // base color RGBA8888 [8, 8, 8, 8]
             gbuffer_rt[0] = new RenderTexture(width, height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
             // normal [10, 10, 10, 2]
@@ -179,25 +186,25 @@ namespace RP5
 
             // Calculate view projection matrix
             Matrix4x4 view = camera.worldToCameraMatrix;
-            Matrix4x4 projection = GL.GetGPUProjectionMatrix(camera.projectionMatrix, true);
-            float2 jitter_offset = taa_pass.GetJitterOffset();
+            Matrix4x4 projection = GL.GetGPUProjectionMatrix(camera.nonJitteredProjectionMatrix, true);
+            float2 jitter_offset = taa_pass.GetJitterOffset()  - new float2(0.5f, 0.5f); // [-1, 1]
 
-            // divide resolution, offset inside one pixel
-            float offset_x = (jitter_offset.x - 0.5f) / width;
-            float offset_y = (jitter_offset.y - 0.5f) / height;
+            jitter_offset.x = (jitter_offset.x) / width * 2;;
+            jitter_offset.y = (jitter_offset.y) / height * 2;;
+            //jitter_offset = jitter_offset_prev = new float2(0.0f, 0.0f);
+            // offset the projection matrix// divide resolution, offset inside one pixel [-0.5, 0.5]
+            projection[0, 2] += (jitter_offset.x);
+            projection[1, 2] += (jitter_offset.y);
 
-            // offset the projection matrix
-            projection[0, 2] += offset_x;
-            projection[1, 2] += offset_y;
+            jitter_offset = jitter_offset_prev = new float2(0.0f, 0.0f);
+
             Matrix4x4 view_projection = projection * view;
-
             //camera.previousViewProjectionMatrix;
             Shader.SetGlobalMatrix("view_projection_prev", view_projection_prev);
             Shader.SetGlobalMatrix("view_projection", view_projection);
             Shader.SetGlobalVector("jitter_offset_prev", jitter_offset_prev);
             Shader.SetGlobalVector("jitter_offset", jitter_offset);
             Shader.SetGlobalMatrix("inverse_view_projection", view_projection.inverse);
-
             view_projection_prev = view_projection;
             jitter_offset_prev = jitter_offset;
 
@@ -249,14 +256,22 @@ namespace RP5
             //cmd.DispatchCompute(composite_shading, kernel, full_screen_cs_thread_group.x, full_screen_cs_thread_group.y, full_screen_cs_thread_group.z);
             //context.ExecuteCommandBuffer(cmd);
         }
+
+
+        void MotionVectorPass(ScriptableRenderContext context)
+        {
+            mv_pass.BindResources(depth_rt);
+            mv_pass.Dispatch(context, tg.x, tg.y, tg.z);
+        }
+
         void PostProceePass(ScriptableRenderContext context)
         {
             post_process_pipeline.Dispatch(context, shading_rt, tg.x, tg.y, tg.z);
         }
 
         void AntiAliasing(ScriptableRenderContext context) {
-            taa_pass.BindResources(shading_rt, history_color, gbuffer_rt[2]);
-            taa_pass.Dispatch(context, tg.x, tg.y, tg.z);
+            //taa_pass.BindResources(shading_rt, history_color, mv_pass.mv_tex);
+            //taa_pass.Dispatch(context, tg.x, tg.y, tg.z);
         }
 
         void Blit2Screen(ScriptableRenderContext context)
@@ -307,40 +322,44 @@ namespace RP5
 
             if (cameras.Count() > 0)
             {
-                var camera = cameras[0];
-                context.SetupCameraProperties(camera);
-                camera_pos = camera.transform.position;
-                Setup(context);
-                light_manager.Setup(context, scene_constants_data);
-
-                GeometryPasss(context, camera);
-
-                LightPass(context);
-
-                //Bloom(context);
-
-                // copy shading result before postprocessing for some effects using history color buffer. TAA/SSR
+                if (cameras[0].cameraType == CameraType.SceneView)
                 {
-                    CommandBuffer cmd = new CommandBuffer();
-                    cmd.CopyTexture(shading_rt, history_color);
-                    //cmd.Blit(shading_rt, history_color);
-                    context.ExecuteCommandBuffer(cmd);
-                    
+                    var camera = cameras[0];
+                    context.SetupCameraProperties(camera);
+                    camera_pos = camera.transform.position;
+                    Setup(context);
+                    light_manager.Setup(context, scene_constants_data);
+
+                    GeometryPasss(context, camera);
+
+                    MotionVectorPass(context);
+
+                    LightPass(context);
+
+                    //Bloom(context);
+
+                    // copy shading result before postprocessing for some effects using history color buffer. TAA/SSR
+                    {
+                        CommandBuffer cmd = new CommandBuffer();
+                        cmd.CopyTexture(shading_rt, history_color);
+                        //cmd.Blit(shading_rt, history_color);
+                        context.ExecuteCommandBuffer(cmd);
+                    }
+
+                    AntiAliasing(context);
+
+                    //PostProceePass(context);
+
+                    //Misc(context);
+
+                    context.DrawGizmos(camera, GizmoSubset.PreImageEffects);
+                    context.DrawGizmos(camera, GizmoSubset.PostImageEffects);
+
+
+                    Blit2Screen(context);
+                    context.Submit();
+
                 }
-
-                AntiAliasing(context);
-
-                //PostProceePass(context);
-
-                //Misc(context);
-
-                context.DrawGizmos(camera, GizmoSubset.PreImageEffects);
-                context.DrawGizmos(camera, GizmoSubset.PostImageEffects);
-
-
-                Blit2Screen(context);
-                context.Submit();
-
             }
         }
 

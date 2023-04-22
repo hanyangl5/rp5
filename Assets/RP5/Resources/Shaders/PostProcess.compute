@@ -4,12 +4,10 @@
 #pragma kernel DepthOfField
 #pragma kernel FilmGrain
 #pragma kernel ColorGrading
-
-#pragma require WaveBallot // WaveActiveCountBits
-
-#include "common.hlsl"
-#include "common_math.hlsl"
-#include "PostProcessHelper.hlsl"
+#pragma require WaveBasic
+#include "include/common.hlsl"
+#include "include/common_math.hlsl"
+#include "include/PostProcessHelper.hlsl"
 
 SamplerState my_linear_clamp_sampler; // https://docs.unity3d.com/Manual/SL-SamplerStates.html
 //#pragma kernel ColorAjustment

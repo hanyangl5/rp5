@@ -1,0 +1,2 @@
+
+#pragma require WaveBasic

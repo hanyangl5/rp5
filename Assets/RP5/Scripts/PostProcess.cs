@@ -85,11 +85,11 @@ namespace RP5
             post_process.SetTexture(tone_mapping, "color_tex", color_tex);
             post_process.SetTexture(color_grading, "color_tex", color_tex);
             CommandBuffer cmd = new CommandBuffer();
-            cmd.name = "post process";
+            //cmd.name = "post process";
             //cmd.DispatchCompute(post_process, depth_of_field, x, y, z);
-            //cmd.DispatchCompute(post_process, motion_blur, x, y, z);
-            cmd.DispatchCompute(post_process, vignette, x, y, z);
-            cmd.DispatchCompute(post_process, film_grain, x, y, z);
+            cmd.DispatchCompute(post_process, motion_blur, x, y, z);
+            //cmd.DispatchCompute(post_process, vignette, x, y, z);
+            //cmd.DispatchCompute(post_process, film_grain, x, y, z);
             cmd.DispatchCompute(post_process, tone_mapping, x, y, z);
             cmd.DispatchCompute(post_process, color_grading, x, y, z);
             context.ExecuteCommandBuffer(cmd);

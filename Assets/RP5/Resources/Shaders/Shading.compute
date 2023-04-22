@@ -4,13 +4,14 @@
 
 #include "UnityCG.cginc"
 #include "HLSLSupport.cginc"
-#include "brdf.hlsl"
-#include "light.hlsl"
-#include "material.hlsl"
+#include "include/brdf.hlsl"
+#include "include/light.hlsl"
+#include "include/material.hlsl"
 #include "UnityLightingCommon.cginc"
-#include "common.hlsl"
-#include "debug.hlsl"
-#include "common_math.hlsl"
+#include "include/common.hlsl"
+#include "include/debug.hlsl"
+#include "include/common_math.hlsl"
+#include "include/transform.hlsl"
 
 Texture2D<float4> gdepth;
 Texture2D<float4> gbuffer0; // world normal
@@ -42,9 +43,9 @@ float3 Lighting(float3 normal, float3 v, float3 light_dir, MaterialProperties ma
     float G = Vis_SmithGGXCombined(mat.a2, bxdf.NoV, bxdf.NoL);
     float3 F = Fresnel_Schlick(mat.f0, bxdf.VoM);
 
-    float3 diffuse = Diffuse_Lambert(mat.albedo); //(1 - mat.metallic); // TODO(hylu): layered material?
+    float3 diffuse = Diffuse_Lambert(mat.albedo) * (1 - mat.metallic); // TODO(hylu): layered material?
     float3 specular = D * G * F;
-    return ( specular) * bxdf.NoL; 
+    return (diffuse + specular) * bxdf.NoL; 
 }
 
 [numthreads(FULL_SCREEN_CS_THREAD_X, FULL_SCREEN_CS_THREAD_Y, FULL_SCREEN_CS_THREAD_Z)] 
@@ -62,12 +63,7 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
  
     float2 uv = (float2(id.xy) + 0.5) / float2(width, height);
     uv = uv * 2.0 - 1.0;
-    float4 clipPos = float4(uv.x, uv.y, depth, 1.0);
-    clipPos.y = -clipPos.y;
-    float4 worldPos = mul(inverse_view_projection, clipPos);
-    worldPos.xyz /= worldPos.w;
-
-    float3 position_ws = worldPos;
+    float3 position_ws = ComputeWorldPosFromDepth(uv, inverse_view_projection, depth).xyz;
     // Load albedo, normal, and mr from gbuffer
     float3 albedo = gbuffer0.Load(id.xyz).rgb;
     float3 normal = gbuffer1.Load(id.xyz).rgb;
@@ -78,7 +74,7 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
 
     // Calculate roughness, metallic, and f0
     MaterialProperties mat = InitMaterial(albedo, normal, mr.x, mr.y, emissive);
-
+    
     float3 radiance = float3(0.0, 0.0, 0.0);
 
     // Direct lighting
@@ -94,7 +90,7 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
         float3 lighting =  Lighting(normal, v, light_dir, mat);
 
         // Calculate radiance
-        radiance += lighting * light_color * light_intensity; // attenuation;
+        radiance += lighting * light_color * light_intensity;
     }
 
     // Point lighting
@@ -142,7 +138,10 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
         radiance += lighting * light_color * light_intensity * distance_attenuation * angle_attenuation;
     }
 
+    // environment lighting
+    
     radiance += mat.emissive;
+    
     // Set the output color
     shading_rt[id.xy] = float4(radiance, 1.0);
 }
