@@ -1,0 +1,33 @@
+// full screen pass to compute motion vector for static objects
+#pragma kernel MotionVector
+#pragma require WaveBasic
+#pragma enable_d3d11_debug_symbols
+
+#include "include/common.hlsl"
+#include "include/motion_vector.hlsl"
+#include "include/transform.hlsl"
+// Each #kernel tells which function to compile; you can have many kernels
+
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+Texture2D<float4> depth_tex;
+RWTexture2D<float2> mv_tex;
+uint width;
+uint height;
+float4x4 view_projection_prev;
+float4x4 view_projection;
+float4x4 inverse_view_projection;
+float2 jitter_offset_prev;
+float2 jitter_offset;
+
+[numthreads(FULL_SCREEN_CS_THREAD_X, FULL_SCREEN_CS_THREAD_Y, FULL_SCREEN_CS_THREAD_Z)] 
+void MotionVector(uint3 id : SV_DispatchThreadID)
+{
+    float depth = depth_tex.Load(id).r;
+    if(depth == 0.0) return;
+    float2 uv = (id.xy + 0.5) / float2(width, height);
+    float4 position_ws = ComputeWorldPosFromDepth(uv, inverse_view_projection, depth);
+    float2 mv = ComputeMotionVector(position_ws, view_projection, view_projection_prev, jitter_offset, jitter_offset_prev);
+	mv_tex[id.xy] = float4(mv.x, mv.y, 1, 1);
+}

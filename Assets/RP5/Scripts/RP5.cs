@@ -332,8 +332,6 @@ namespace RP5
 
                     GeometryPasss(context, camera);
 
-                    MotionVectorPass(context);
-
                     LightPass(context);
 
                     //Bloom(context);
