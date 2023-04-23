@@ -23,7 +23,7 @@ BXDF InitBXDF(float3 N, float3 V, float3 L, float3 X = 0, float3 Y = 0) {
     bxdf.NoL = dot(N, L);
     bxdf.NoV = dot(N, V);
     bxdf.VoL = dot(V, L);
-    float3 M = (V + L) / 2.0;
+    float3 M = normalize((V + L)/2);
     bxdf.NoM = saturate(dot(N, M));
     bxdf.VoM = saturate(dot(V, M));
     if (all(X == float3(0.0, 0.0, 0.0)) && all(Y == float3(0.0, 0.0, 0.0))) {
@@ -70,10 +70,10 @@ float NDF_GGX(float a2, float NoM) {
 
 // float NDF_Aniso_GGX()
 
-float NDF_Aniso_GGX( float ax, float ay, float NoH, float XoM, float YoM )
+float NDF_Aniso_GGX( float ax, float ay, float NoM, float XoM, float YoM )
 {
 	float a2 = ax * ay;
-	float3 V = float3(ay * XoM, ax * YoM, a2 * NoH);
+	float3 V = float3(ay * XoM, ax * YoM, a2 * NoM);
 	float S = dot(V, V);
 
 	return (1.0f * _1DIVPI) * a2 * Pow2(a2 / S);
@@ -89,7 +89,7 @@ float Vis_Aniso_SmithGGXCombined(float ax, float ay, float NoV, float NoL,
                                     float XoV, float XoL, float YoV, float YoL) {
     float Vis_SmithV = NoL * length(float3(ax * XoV, ay * YoV, NoV));
     float Vis_SmithL = NoV * length(float3(ax * XoL, ay * YoL, NoL));
-    return 0.5 / (Vis_SmithV + Vis_SmithL);
+    return saturate(0.5 / (Vis_SmithV + Vis_SmithL));
 }
 
 // Convert a roughness and an anisotropy factor into GGX alpha values respectively for the major and minor axis of the tangent frame

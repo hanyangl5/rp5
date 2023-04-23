@@ -38,7 +38,7 @@ RenderSettings:
   m_ReflectionIntensity: 1
   m_CustomReflection: {fileID: 0}
   m_Sun: {fileID: 0}
-  m_IndirectSpecularColor: {r: 0.18374492, g: 0.22822082, b: 0.29929715, a: 1}
+  m_IndirectSpecularColor: {r: 0.17325704, g: 0.21656314, b: 0.29860452, a: 1}
   m_UseRadianceAmbientProbe: 0
 --- !u!157 &3
 LightmapSettings:
@@ -853,14 +853,14 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 943983387}
-  m_LocalRotation: {x: 0.068712175, y: -0.0005294917, z: -0.0007902663, w: 0.99763614}
-  m_LocalPosition: {x: 1.37, y: 0.994, z: -1.38}
+  m_LocalRotation: {x: -0.06261871, y: 0.0005343111, z: 0.00078702456, w: -0.99803704}
+  m_LocalPosition: {x: 1.37, y: 0.994, z: -6.257}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
   m_RootOrder: 3
-  m_LocalEulerAnglesHint: {x: 7.88, y: -0.067, z: -0.095}
+  m_LocalEulerAnglesHint: {x: -352.82, y: -0.067, z: -0.095}
 --- !u!1 &1203489470
 GameObject:
   m_ObjectHideFlags: 0
@@ -962,7 +962,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!64 &1262481903
 MeshCollider:
   m_ObjectHideFlags: 0
@@ -1646,7 +1646,7 @@ Light:
   m_Type: 1
   m_Shape: 0
   m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_Intensity: 10
+  m_Intensity: 2
   m_Range: 10
   m_SpotAngle: 30
   m_InnerSpotAngle: 21.80208
@@ -1703,14 +1703,14 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1851189173}
-  m_LocalRotation: {x: -0.06245488, y: 0.22581144, z: -0.8307399, w: -0.5049553}
+  m_LocalRotation: {x: 0.75968015, y: 0, z: 0, w: 0.650297}
   m_LocalPosition: {x: 0.813, y: 0.81, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
   m_RootOrder: 1
-  m_LocalEulerAnglesHint: {x: 154.007, y: 532.052, z: -424.423}
+  m_LocalEulerAnglesHint: {x: 98.87201, y: 0, z: 0}
 --- !u!1 &1871892027
 GameObject:
   m_ObjectHideFlags: 0
@@ -1764,7 +1764,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 0}
+  - {fileID: 2100000, guid: 9920d6abdeacbca4bae44c975fc6aa37, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0

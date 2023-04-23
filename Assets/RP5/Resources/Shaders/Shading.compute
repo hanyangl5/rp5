@@ -19,6 +19,7 @@ Texture2D<float4> gbuffer1;
 Texture2D<float4> gbuffer2;
 Texture2D<float4> gbuffer3;
 Texture2D<float4> gbuffer4;
+Texture2D<float4> gbuffer5;
 RWTexture2D<float4> shading_rt;
 
 uint directional_light_count;
@@ -40,25 +41,24 @@ float3 Lighting(MaterialProperties mat, float3 n, float3 v, float3 l, float3 x =
     // Calculate diffuse and specular components
     BXDF bxdf = InitBXDF(n, v, l, x, y);
 
-    float D;
-    float G;
+    float D = 0.0f;
+    float G = 0.0f;
     if (mat.anisotropy != 0.0f) {
         float ax;
         float ay;
         GetAnisotropicRoughness(mat.roughness2, mat.anisotropy, ax, ay);
-        D = NDF_Aniso_GGX(ax, ay, bxdf.NoM, bxdf.XoM, bxdf. YoM);
+        D = NDF_Aniso_GGX(ax, ay, bxdf.NoM, bxdf.XoM, bxdf.YoM);
         G = Vis_Aniso_SmithGGXCombined(ax, ay, bxdf.NoV, bxdf.NoL, bxdf.XoV, bxdf.XoL, bxdf.YoV, bxdf.YoL);
     } else {
         D = NDF_GGX(mat.a2, bxdf.NoM);
         G = Vis_SmithGGXCombined(mat.a2, bxdf.NoV, bxdf.NoL);
     }
-        //D = NDF_GGX(mat.a2, bxdf.NoM);
-        //G = Vis_SmithGGXCombined(mat.a2, bxdf.NoV, bxdf.NoL);
     float3 F = Fresnel_Schlick(mat.f0, bxdf.VoM);
 
-    float3 diffuse = Diffuse_Lambert(mat.albedo) * (1 - mat.metallic); // TODO(hylu): layered material?
+    float3 diffuse = Diffuse_Lambert(mat.albedo) * (1 - mat.metallic) * (1 - F); // TODO(hylu): layered material?
     float3 specular = D * G * F;
-    return (diffuse + specular) * bxdf.NoL; 
+    return float3(D, D, D);
+    return (specular + diffuse) * bxdf.NoL; 
 }
 
 [numthreads(FULL_SCREEN_CS_THREAD_X, FULL_SCREEN_CS_THREAD_Y, FULL_SCREEN_CS_THREAD_Z)] 
@@ -80,16 +80,18 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
     // Load albedo, n, and mr from gbuffer
     float3 albedo = gbuffer0.Load(id.xyz).rgb;
     float3 n = gbuffer1.Load(id.xyz).rgb;
-    float4 tangent_anisotropy = gbuffer2.Load(id);
-    float3 x = tangent_anisotropy.xyz;
-    float3 y = normalize(cross(n, x));
+    float4 tangent_sign = gbuffer5.Load(id);
+    float3 x = tangent_sign.xyz;
+    
+    float3 y = normalize(cross(n, x) * tangent_sign.w);
+    //float3 y = normalize(cross(n, x));
     float3 emissive = gbuffer3.Load(id.xyz).rgb;
     float2 mr = gbuffer4.Load(id.xyz).rg;
     // Calculate view vector
     float3 v = normalize(world_space_camera_pos.xyz - position_ws);
 
     // Calculate roughness, metallic, and f0
-    MaterialProperties mat = InitMaterial(albedo, n, mr.x, mr.y, emissive, tangent_anisotropy.w);
+    MaterialProperties mat = InitMaterial(albedo, n, mr.x, mr.y, emissive, 0.0);
     
     float3 radiance = float3(0.0, 0.0, 0.0);
 

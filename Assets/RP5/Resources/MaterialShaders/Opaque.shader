@@ -49,7 +49,8 @@ Shader "Custuom/Opaque"
                 out float4 gbuffer1 : SV_Target1,
                 out float2 gbuffer2 : SV_Target2,
                 out float4 gbuffer3 : SV_Target3,
-                out float2 gbuffer4 : SV_Target4) {
+                out float2 gbuffer4 : SV_Target4,
+                out float4 gbuffer5 : SV_Target5) {
                 float4 albedo = tex2D(_albedo_tex, i.uv);
                 float m = tex2D(_metallic_tex, i.uv).r;
                 float r = tex2D(_roughness_tex, i.uv).r;
@@ -63,6 +64,7 @@ Shader "Custuom/Opaque"
 
                 gbuffer3 = float4(emissive * _emissive_intensity, 1.0);
                 gbuffer4 = float2(m, r); // metalic roughness
+                gbuffer5 = float4(0.0, 0.0, 0.0, 0.0);
             }
             ENDCG
         }

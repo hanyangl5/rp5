@@ -19,7 +19,7 @@ Material:
   m_CustomRenderQueue: -1
   stringTagMap: {}
   disabledShaderPasses: []
-  m_LockedProperties: 
+  m_LockedProperties: _emissive _emissive_intensity
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
@@ -77,13 +77,13 @@ Material:
     - _SrcBlend: 1
     - _UVSec: 0
     - _ZWrite: 1
-    - _anisotropy: 0.463
+    - _anisotropy: 1
     - _emissive_intensity: 0
-    - _metallic: 0.955
-    - _roughness: 0
+    - _metallic: 0.362
+    - _roughness: 0.565
     m_Colors:
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _albedo: {r: 1, g: 1, b: 1, a: 1}
-    - _emissive: {r: 1, g: 0, b: 0, a: 1}
+    - _emissive: {r: 0.21960786, g: 0.21960786, b: 0.21960786, a: 1}
   m_BuildTextureStacks: []

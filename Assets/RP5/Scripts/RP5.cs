@@ -20,7 +20,7 @@ namespace RP5
 
         FullScreenCsThreadGroup tg;
 
-        const uint gbuffer_render_target_count = 5;
+        const uint gbuffer_render_target_count = 6;
         RenderTexture depth_rt;
         RenderTexture[] gbuffer_rt = new RenderTexture[gbuffer_render_target_count];
         RenderTargetIdentifier[] gbufferID = new RenderTargetIdentifier[gbuffer_render_target_count];
@@ -80,12 +80,15 @@ namespace RP5
             gbuffer_rt[0] = new RenderTexture(width, height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
             // normal [10, 10, 10, 2]
             gbuffer_rt[1] = new RenderTexture(width, height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
-            // tangent, anisotropy
-            gbuffer_rt[2] = new RenderTexture(width, height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
+            // motion vector
+            gbuffer_rt[2] = new RenderTexture(width, height, 0, RenderTextureFormat.RGHalf, RenderTextureReadWrite.Linear);
             // [world pos]
             gbuffer_rt[3] = new RenderTexture(width, height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
             // metallic roughness
             gbuffer_rt[4] = new RenderTexture(width, height, 0, RenderTextureFormat.RG16, RenderTextureReadWrite.Linear);
+
+            // tangent, anisotropy
+            gbuffer_rt[5] = new RenderTexture(width, height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
 
             shading_rt = new RenderTexture(width, height, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
             shading_rt.enableRandomWrite = true;
@@ -166,6 +169,7 @@ namespace RP5
             opaque_shading.SetTexture(kernel, "gbuffer2", gbuffer_rt[2]);
             opaque_shading.SetTexture(kernel, "gbuffer3", gbuffer_rt[3]);
             opaque_shading.SetTexture(kernel, "gbuffer4", gbuffer_rt[4]);
+            opaque_shading.SetTexture(kernel, "gbuffer5", gbuffer_rt[5]);
             cmd.DispatchCompute(opaque_shading, kernel, tg.x, tg.y, tg.z);
 
             context.ExecuteCommandBuffer(cmd);
@@ -291,7 +295,7 @@ namespace RP5
             CommandBuffer cmd = new CommandBuffer();
             cmd.name = "clearBuffer";
             cmd.SetRenderTarget(gbufferID, depth_rt);
-            cmd.ClearRenderTarget(true, true, Color.black);
+            cmd.ClearRenderTarget(true, true, Color.clear);
             context.ExecuteCommandBuffer(cmd); // submit to gpu 
             cmd.SetRenderTarget(shading_rt);
             cmd.ClearRenderTarget(true, true, Color.black);
