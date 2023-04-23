@@ -14,7 +14,7 @@
 #include "include/transform.hlsl"
 
 Texture2D<float4> gdepth;
-Texture2D<float4> gbuffer0; // world normal
+Texture2D<float4> gbuffer0; // world n
 Texture2D<float4> gbuffer1;
 Texture2D<float4> gbuffer2;
 Texture2D<float4> gbuffer3;
@@ -36,11 +36,24 @@ StructuredBuffer<DirectionalLight> directional_lights;
 StructuredBuffer<PointLight> point_lights;
 StructuredBuffer<SpotLight> spot_lights;
 
-float3 Lighting(float3 normal, float3 v, float3 light_dir, MaterialProperties mat) {
+float3 Lighting(MaterialProperties mat, float3 n, float3 v, float3 l, float3 x = 0.0, float3 y = 0.0) {
     // Calculate diffuse and specular components
-    BXDF bxdf = InitBXDF(normal, v, light_dir);
-    float D = NDF_GGX(mat.a2, bxdf.NoM);
-    float G = Vis_SmithGGXCombined(mat.a2, bxdf.NoV, bxdf.NoL);
+    BXDF bxdf = InitBXDF(n, v, l, x, y);
+
+    float D;
+    float G;
+    if (mat.anisotropy != 0.0f) {
+        float ax;
+        float ay;
+        GetAnisotropicRoughness(mat.roughness2, mat.anisotropy, ax, ay);
+        D = NDF_Aniso_GGX(ax, ay, bxdf.NoM, bxdf.XoM, bxdf. YoM);
+        G = Vis_Aniso_SmithGGXCombined(ax, ay, bxdf.NoV, bxdf.NoL, bxdf.XoV, bxdf.XoL, bxdf.YoV, bxdf.YoL);
+    } else {
+        D = NDF_GGX(mat.a2, bxdf.NoM);
+        G = Vis_SmithGGXCombined(mat.a2, bxdf.NoV, bxdf.NoL);
+    }
+        //D = NDF_GGX(mat.a2, bxdf.NoM);
+        //G = Vis_SmithGGXCombined(mat.a2, bxdf.NoV, bxdf.NoL);
     float3 F = Fresnel_Schlick(mat.f0, bxdf.VoM);
 
     float3 diffuse = Diffuse_Lambert(mat.albedo) * (1 - mat.metallic); // TODO(hylu): layered material?
@@ -64,16 +77,19 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
     float2 uv = (float2(id.xy) + 0.5) / float2(width, height);
     uv = uv * 2.0 - 1.0;
     float3 position_ws = ComputeWorldPosFromDepth(uv, inverse_view_projection, depth).xyz;
-    // Load albedo, normal, and mr from gbuffer
+    // Load albedo, n, and mr from gbuffer
     float3 albedo = gbuffer0.Load(id.xyz).rgb;
-    float3 normal = gbuffer1.Load(id.xyz).rgb;
+    float3 n = gbuffer1.Load(id.xyz).rgb;
+    float4 tangent_anisotropy = gbuffer2.Load(id);
+    float3 x = tangent_anisotropy.xyz;
+    float3 y = normalize(cross(n, x));
     float3 emissive = gbuffer3.Load(id.xyz).rgb;
     float2 mr = gbuffer4.Load(id.xyz).rg;
     // Calculate view vector
     float3 v = normalize(world_space_camera_pos.xyz - position_ws);
 
     // Calculate roughness, metallic, and f0
-    MaterialProperties mat = InitMaterial(albedo, normal, mr.x, mr.y, emissive);
+    MaterialProperties mat = InitMaterial(albedo, n, mr.x, mr.y, emissive, tangent_anisotropy.w);
     
     float3 radiance = float3(0.0, 0.0, 0.0);
 
@@ -81,13 +97,13 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
     for (uint i = 0; i < directional_light_count; i++) {
         float3 light_color = directional_lights[i].color;
         float light_intensity = directional_lights[i].intensity;
-        float3 light_dir = normalize(-directional_lights[i].direction);
+        float3 l = normalize(-directional_lights[i].direction);
         // Check if the light is facing away from the surface
-        if (dot(normal, light_dir) < 0.0) {
+        if (dot(n, l) < 0.0) {
             continue;
         }
 
-        float3 lighting =  Lighting(normal, v, light_dir, mat);
+        float3 lighting =  Lighting(mat, n, v, l, x, y);
 
         // Calculate radiance
         radiance += lighting * light_color * light_intensity;
@@ -98,17 +114,17 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
         float3 light_color = point_lights[i].color;
         float light_intensity = point_lights[i].intensity;
         
-        float3 light_dir = point_lights[i].position - position_ws;
+        float3 l = point_lights[i].position - position_ws;
 
         // Check if the light is facing away from the surface
-        if (dot(normal, light_dir) < 0.0) {
+        if (dot(n, l) < 0.0) {
             continue;
         }
 
-        float distance = length(light_dir);
-        light_dir = normalize(light_dir);
+        float distance = length(l);
+        l = normalize(l);
 
-        float3 lighting = Lighting(normal, v, light_dir, mat);
+        float3 lighting = Lighting(mat, n, v, l, x, y);
         float distance_attenuation = DistanceFalloff(distance, point_lights[i].falloff);
 
         // Calculate radiance
@@ -120,19 +136,19 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
         float3 light_color = spot_lights[i].color;
         float light_intensity = spot_lights[i].intensity;
         
-        float3 light_dir = -spot_lights[i].direction;
+        float3 l = -spot_lights[i].direction;
 
         // Check if the light is facing away from the surface
-        if (dot(normal, light_dir) < 0.0) {
+        if (dot(n, l) < 0.0) {
             continue;
         }
 
         float distance = length(spot_lights[i].position - position_ws);
-        light_dir = normalize(light_dir);
+        l = normalize(l);
 
-        float3 lighting = Lighting(normal, v, light_dir, mat);
+        float3 lighting = Lighting(mat, n, v, l, x, y);
         float distance_attenuation = DistanceFalloff(distance, spot_lights[i].falloff);
-        float angle_attenuation = AngleFalloff(spot_lights[i].inner_cone, spot_lights[i].outer_cone, spot_lights[i].direction, light_dir);
+        float angle_attenuation = AngleFalloff(spot_lights[i].inner_cone, spot_lights[i].outer_cone, spot_lights[i].direction, l);
 
         // Calculate radiance
         radiance += lighting * light_color * light_intensity * distance_attenuation * angle_attenuation;

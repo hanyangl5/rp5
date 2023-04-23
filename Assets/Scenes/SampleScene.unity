@@ -282,6 +282,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: dragon
       objectReference: {fileID: 0}
+    - target: {fileID: 211280466716591218, guid: 7b8f7c00b984bec4b88f600a3980f10c, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 462322728475301653, guid: 7b8f7c00b984bec4b88f600a3980f10c, type: 3}
       propertyPath: m_RootOrder
       value: 13

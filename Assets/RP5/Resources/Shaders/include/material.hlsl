@@ -18,10 +18,11 @@ struct MaterialProperties {
     float roughness2;
     float a2;
     float3 emissive;
+    float anisotropy;
     uint id;
 };
 
-MaterialProperties InitMaterial(float3 albedo, float3 normal, float metallic, float roughness, float3 emissive) {
+MaterialProperties InitMaterial(float3 albedo, float3 normal, float metallic, float roughness, float3 emissive, float anisotropy = 0.0) {
     MaterialProperties mat;
     mat.albedo = albedo;
     mat.roughness = roughness;
@@ -30,7 +31,7 @@ MaterialProperties InitMaterial(float3 albedo, float3 normal, float metallic, fl
     mat.metallic = metallic;
     mat.emissive = emissive;
     mat.f0 = lerp(albedo, float3(0.04, 0.04, 0.04), metallic);
-    mat.f0 = lerp(float3(0.04, 0.04, 0.04), albedo, metallic);
+    mat.anisotropy = anisotropy;
     return mat;
 }
 
