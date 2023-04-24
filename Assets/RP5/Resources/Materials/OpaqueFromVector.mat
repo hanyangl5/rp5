@@ -8,7 +8,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: OpaqueFromVector
-  m_Shader: {fileID: 4800000, guid: b4f5261af6de7ed44a7f6042ee041850, type: 3}
+  m_Shader: {fileID: 4800000, guid: e888bdddc6366b44282d638e7b90bfef, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -19,7 +19,7 @@ Material:
   m_CustomRenderQueue: -1
   stringTagMap: {}
   disabledShaderPasses: []
-  m_LockedProperties: 
+  m_LockedProperties: _emissive _emissive_intensity
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
@@ -77,8 +77,10 @@ Material:
     - _SrcBlend: 1
     - _UVSec: 0
     - _ZWrite: 1
-    - _metallic: 1
-    - _roughness: 0.081
+    - _anisotropy: -1
+    - _emissive_intensity: 0
+    - _metallic: 0.348
+    - _roughness: 0.369
     m_Colors:
     - _Color: {r: 1, g: 1, b: 1, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}

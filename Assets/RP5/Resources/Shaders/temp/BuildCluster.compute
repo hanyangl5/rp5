@@ -1,0 +1,97 @@
+// Cluster Light Culling
+
+#include "geometry.hlsl"
+#include "light.hlsl"
+// Each #kernel tells which function to compile; you can have many kernels
+
+#pragma kernel LightAssign
+#pragma require WaveBasic
+#include "debug.hlsl"
+
+uint point_light_count;
+uint spot_light_count;
+
+// light lists
+
+
+uint num_tiles_x;
+uint num_tiles_y;
+uint num_tiles_z;
+
+float4x4 camera_view_projection;
+StructuredBuffer<PointLight> point_lights;
+StructuredBuffer<SpotLight> spot_lights;
+
+RWStructuredBuffer<AABB> point_lights_clip_aabb;
+RWStructuredBuffer<AABB> spot_lights_clip_aabb;
+
+
+// a indirect table to get better memory usage
+
+// 32 bit offset
+// 32 bit point light
+// 32 bit spot light
+// TODO: optimizze memory usage and support more objects
+// other local lights
+// decal ...
+// probe ...
+RWTexture3D<uint4> cluster_list; // index the offset and range of each item
+
+RWStructuredBuffer<uint> item_list; // index the actual item
+
+RWStructuredBuffer<uint> cluster_list_offset;
+
+StructuredBuffer<float3> cluster_vertices;
+AABB GetClusterAABB(uint3 tile_index) {
+    AABB cluster_aabb;
+    // x: left to right
+    // y: bottom to up
+    // z: near to far
+    uint min_point_index = tile_index.z * (num_tiles_x + 1) * (num_tiles_y + 1) + tile_index.y * (num_tiles_x + 1) + tile_index.x;
+    uint max_point_index = (tile_index.z + 1) * (num_tiles_x + 1) * (tile_index.y + 1) + (num_tiles_y + 1) * (num_tiles_x + 1) + tile_index.x + 1;
+    cluster_aabb.min = cluster_vertices[min_point_index];
+    cluster_aabb.max = cluster_vertices[max_point_index];
+    return cluster_aabb;    
+}
+
+[numthreads(32, 32, 1)]
+void LightAssign (uint3 tile_index : SV_DispatchThreadID)
+{
+    AABB cluster_aabb = GetClusterAABB(tile_index);
+    uint point_light_range = 0;
+    uint point_light_index_list[1024]; // TODO(hylu): this solution is kind of dirty, crashes when over 1000 light are in one tile,
+    
+    for (uint i = 0; i < point_light_count; i++) {        
+        AABB clip_aabb = point_lights_clip_aabb[i];
+        // aabb intersect with aabb
+        if (AABBsIntersect(clip_aabb, cluster_aabb) == true) {
+            point_light_index_list[point_light_range++] = i;
+        }
+    }
+    
+    uint spot_light_range = 0;
+    uint spot_light_index_list[1024];
+    
+    for (uint i = 0; i < spot_light_count; i++) {        
+        AABB clip_aabb = spot_lights_clip_aabb[i];
+        // aabb intersect with aabb
+        if (AABBsIntersect(clip_aabb, cluster_aabb) == true) {
+            spot_light_index_list[spot_light_range++] = i;
+        }
+    }
+
+    // sync inside warp
+    cluster_list[uint3(tile_index.x, tile_index.y, 0)] += uint4(cluster_list_offset[0], (point_light_range), (spot_light_range), 0);
+
+    uint current_offset = cluster_list_offset[0];
+
+    InterlockedAdd(cluster_list_offset[0], point_light_range + spot_light_range);
+
+    for (uint i = 0; i < point_light_range; i++) {
+        item_list[current_offset + i] = point_light_index_list[i];
+    }
+    for (uint j = 0; j < spot_light_range; j++) {
+        item_list[current_offset + point_light_range + j] = spot_light_index_list[j];
+    }
+    
+}

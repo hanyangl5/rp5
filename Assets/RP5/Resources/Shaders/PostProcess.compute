@@ -1,0 +1,92 @@
+#pragma kernel ToneMapping
+#pragma kernel MotionBlur
+#pragma kernel Vignette
+#pragma kernel DepthOfField
+#pragma kernel FilmGrain
+#pragma kernel ColorGrading
+#pragma require WaveBasic
+#include "include/common.hlsl"
+#include "include/common_math.hlsl"
+#include "include/PostProcessHelper.hlsl"
+
+SamplerState my_linear_clamp_sampler; // https://docs.unity3d.com/Manual/SL-SamplerStates.html
+//#pragma kernel ColorAjustment
+
+RWTexture2D<float4> color_tex;
+
+int width;
+int height;
+
+[numthreads(FULL_SCREEN_CS_THREAD_X, FULL_SCREEN_CS_THREAD_Y, FULL_SCREEN_CS_THREAD_Z)] 
+void ToneMapping(uint3 id : SV_DispatchThreadID)
+{
+	float4 result = color_tex[id.xy];
+	result.rgb = _TonemapACES(result.rgb);
+	color_tex[id.xy] = result;
+}
+
+Texture2D<float2> gbuffer_velocity;
+int motion_blur_sample_count;
+
+[numthreads(FULL_SCREEN_CS_THREAD_X, FULL_SCREEN_CS_THREAD_Y, FULL_SCREEN_CS_THREAD_Z)] 
+void MotionBlur(uint3 id : SV_DispatchThreadID)
+{
+    float2 velocity = gbuffer_velocity[id.xy].xy;
+	float4 result = color_tex[id.xy];
+
+	//result.rgb = _MotionBlur(result.rgb, velocity, motion_blur_sample_count, color_tex, my_linear_clamp_sampler);
+	color_tex[id.xy] = result;
+}
+
+float vignette_strength;
+float vignette_size;
+
+[numthreads(FULL_SCREEN_CS_THREAD_X, FULL_SCREEN_CS_THREAD_Y, FULL_SCREEN_CS_THREAD_Z)] 
+void Vignette(uint3 id : SV_DispatchThreadID)
+{
+	float4 result = color_tex[id.xy];
+	float2 uv = (id.xy + 0.5) / float2(width, height);
+	result.rgb = _Vignette(result.rgb, uv, vignette_strength, vignette_size);
+	color_tex[id.xy] = result;
+} 
+
+float focus_distance;
+float focus_range;
+float aperture;
+
+// Apply depth of field effect to the input texture
+// focus_distance: the distance to the focal point
+// focus_range: the range of distances in focus
+// aperture: the size of the aperture
+[numthreads(FULL_SCREEN_CS_THREAD_X, FULL_SCREEN_CS_THREAD_Y, FULL_SCREEN_CS_THREAD_Z)] 
+void DepthOfField(uint3 id : SV_DispatchThreadID)
+{
+	float4 result = color_tex[id.xy];
+    float2 uv = (id.xy + 0.5) / float2(width, height); // calculate the UV coordinates for the noise texture
+	result.rgb = _DepthOfField(result.rgb, uv, focus_distance, focus_range, aperture);
+	color_tex[id.xy] = result;
+}
+
+float grain_strength;
+float grain_size;
+
+[numthreads(FULL_SCREEN_CS_THREAD_X, FULL_SCREEN_CS_THREAD_Y, FULL_SCREEN_CS_THREAD_Z)] 
+void FilmGrain(uint3 id : SV_DispatchThreadID)
+{
+    float2 noise_uv = (id.xy + 0.5) / float2(width, height); // calculate the UV coordinates for the noise texture
+    float noise = frac(sin(dot(noise_uv, float2(12.9898, 78.233))) * 43758.5453); // generate a random value for the noise
+	float4 result = color_tex[id.xy];
+	result.rgb = _FilmGrain(result.rgb, grain_strength, noise);
+	color_tex[id.xy] = result;
+} 
+
+uint lut_size;
+Texture3D<float4> color_grading_lut;
+
+[numthreads(FULL_SCREEN_CS_THREAD_X, FULL_SCREEN_CS_THREAD_Y, FULL_SCREEN_CS_THREAD_Z)] 
+void ColorGrading(uint3 id : SV_DispatchThreadID)
+{
+	float4 result = color_tex[id.xy];
+	result.rgb = _ColorGrading(result.rgb, color_grading_lut, my_linear_clamp_sampler, lut_size);
+	color_tex[id.xy] = result;
+}
