@@ -57,7 +57,7 @@ float3 Lighting(MaterialProperties mat, float3 n, float3 v, float3 l, float3 x =
 
     float3 diffuse = Diffuse_Lambert(mat.albedo) * (1 - mat.metallic) * (1 - F); // TODO(hylu): layered material?
     float3 specular = D * G * F;
-    return float3(D, D, D);
+    //return float3(D, D, D);
     return (specular + diffuse) * bxdf.NoL; 
 }
 
@@ -73,13 +73,14 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
         shading_rt[id.xy] = float4(0.0,0.0,0.0,1.0);
         return;
     }
- 
+    
     float2 uv = (float2(id.xy) + 0.5) / float2(width, height);
     uv = uv * 2.0 - 1.0;
     float3 position_ws = ComputeWorldPosFromDepth(uv, inverse_view_projection, depth).xyz;
     // Load albedo, n, and mr from gbuffer
     float3 albedo = gbuffer0.Load(id.xyz).rgb;
     float3 n = gbuffer1.Load(id.xyz).rgb;
+    float anisotropy  = gbuffer2.Load(id).r;
     float4 tangent_sign = gbuffer5.Load(id);
     float3 x = tangent_sign.xyz;
     
@@ -91,7 +92,7 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
     float3 v = normalize(world_space_camera_pos.xyz - position_ws);
 
     // Calculate roughness, metallic, and f0
-    MaterialProperties mat = InitMaterial(albedo, n, mr.x, mr.y, emissive, 0.0);
+    MaterialProperties mat = InitMaterial(albedo, n, mr.x, mr.y, emissive, anisotropy);
     
     float3 radiance = float3(0.0, 0.0, 0.0);
 

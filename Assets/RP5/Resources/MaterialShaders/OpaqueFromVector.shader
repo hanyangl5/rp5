@@ -54,6 +54,7 @@ Shader "Custuom/OpaqueFromVector"
                 float3 tangent_ws = normalize(i.tangent_ws.xyz);
                 gbuffer0 = float4(_albedo.rgb, 0);
                 gbuffer1 = float4(normal, 0);
+                gbuffer2 = float4(_anisotropy, 0.0, 0.0, 0.0);
                 gbuffer3 = float4(_emissive * _emissive_intensity);
                 gbuffer4 = float2(_metallic, _roughness); // metalic roughness
                 gbuffer5 = float4(tangent_ws.x, tangent_ws.y, tangent_ws.z, i.tangent_ws.w);
