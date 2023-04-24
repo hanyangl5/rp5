@@ -13,7 +13,7 @@ Shader "Custuom/Sphere"
     }
     SubShader
     {
-        Tags { "LightMode"="geometry" }
+        Tags { "LightMode"="OpaqueGeometry" }
 
         Pass
         {
@@ -33,11 +33,7 @@ Shader "Custuom/Sphere"
             float4x4 view_projection; //current jittered view projection matrix
             VsOutput VSMain(VsInput v) {
                 VsOutput o;
-                float4 postion_ws = mul(unity_ObjectToWorld, v.pos);
-                o.position = mul(view_projection, postion_ws);
-                o.normal = UnityObjectToWorldNormal(v.normal);
-                o.position_ws = postion_ws;
-                o.uv = v.uv;
+                INIT_VS_OUT
                 return o;
             }
 
@@ -52,8 +48,8 @@ Shader "Custuom/Sphere"
                 float4 albedo = tex2D(_albedo_tex, i.uv);
                 float2 mr = tex2D(_metallic_roughness_tex, i.uv).bg;
                 float3 emissive = tex2D(_emissive_tex, i.uv).rgb;
-                //float4 normal = tex2D(_normal_map, i.uv);
-                float3 normal = normalize(i.normal);
+                float3 normal = normalize(float3(i.t2w0.z, i.t2w1.z, i.t2w2.z));
+ 
                 gbuffer0 = float4(albedo.rgb, 0.0);
                 gbuffer1 = float4(normal, 0.0);
                 gbuffer3 = float4(emissive * _emissive_intensity, 1.0);

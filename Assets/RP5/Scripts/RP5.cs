@@ -182,7 +182,7 @@ namespace RP5
             var culling_result = context.Cull(ref cullingParameters);
 
             // config settings
-            ShaderTagId shaderTagId = new ShaderTagId("geometry");   // 使用 LightMode 为 gbuffer 的 shader
+            ShaderTagId shaderTagId = new ShaderTagId("OpaqueGeometry");   // 使用 LightMode 为 gbuffer 的 shader
             SortingSettings sortingSettings = new SortingSettings(camera);
             DrawingSettings drawingSettings = new DrawingSettings(shaderTagId, sortingSettings);
             FilteringSettings filteringSettings = FilteringSettings.defaultValue;

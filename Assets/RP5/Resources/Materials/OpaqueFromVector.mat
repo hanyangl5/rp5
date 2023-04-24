@@ -77,7 +77,7 @@ Material:
     - _SrcBlend: 1
     - _UVSec: 0
     - _ZWrite: 1
-    - _anisotropy: -0.602
+    - _anisotropy: -1
     - _emissive_intensity: 0
     - _metallic: 0.348
     - _roughness: 0.369

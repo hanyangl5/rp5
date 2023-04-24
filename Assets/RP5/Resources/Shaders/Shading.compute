@@ -80,19 +80,21 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
     // Load albedo, n, and mr from gbuffer
     float3 albedo = gbuffer0.Load(id.xyz).rgb;
     float3 n = gbuffer1.Load(id.xyz).rgb;
-    float anisotropy  = gbuffer2.Load(id).r;
-    float4 tangent_sign = gbuffer5.Load(id);
-    float3 x = tangent_sign.xyz;
+    //float anisotropy  = gbuffer2.Load(id).r;
     
-    float3 y = normalize(cross(n, x) * tangent_sign.w);
+    //float4 tangent_sign = gbuffer5.Load(id);
+    //float3 x = tangent_sign.xyz;
     //float3 y = normalize(cross(n, x));
+    //float3 y = normalize(cross(n, x));
+    float3 x = 0.0;
+    float3 y = 0.0; 
     float3 emissive = gbuffer3.Load(id.xyz).rgb;
     float2 mr = gbuffer4.Load(id.xyz).rg;
     // Calculate view vector
     float3 v = normalize(world_space_camera_pos.xyz - position_ws);
 
     // Calculate roughness, metallic, and f0
-    MaterialProperties mat = InitMaterial(albedo, n, mr.x, mr.y, emissive, anisotropy);
+    MaterialProperties mat = InitMaterial(albedo, n, mr.x, mr.y, emissive, 0.0f);
     
     float3 radiance = float3(0.0, 0.0, 0.0);
 

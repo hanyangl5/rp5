@@ -13,7 +13,7 @@ Shader "Custuom/Helmet"
     }
     SubShader
     {
-        Tags { "LightMode"="geometry" }
+        Tags { "LightMode"="OpaqueGeometry" }
 
         Pass
         {
@@ -35,11 +35,7 @@ Shader "Custuom/Helmet"
 
             VsOutput VSMain(VsInput v) {
                 VsOutput o;
-                float4 postion_ws = mul(unity_ObjectToWorld, v.pos);
-                o.position = mul(view_projection, postion_ws);
-                o.normal = UnityObjectToWorldNormal(v.normal);
-                o.position_ws = postion_ws;
-                o.uv = v.uv;
+                INIT_VS_OUT
                 return o;
             }
 
@@ -54,15 +50,19 @@ Shader "Custuom/Helmet"
                 float4 albedo = tex2D(_albedo_tex, i.uv);
                 float2 mr = tex2D(_metallic_roughness_tex, i.uv).bg;
                 float3 emissive = tex2D(_emissive_tex, i.uv).rgb;
-                float3 normal_ws = normalize(i.normal);
-                float3 normal_ts = normalize(tex2D(_normal_map, i.uv).gba * 2.0 - 1.0);
-                
+                float3 normal_ts = UnpackNormal(tex2D(_normal_map, i.uv));
+
+				normal_ts.z = sqrt(1.0 - saturate(dot(normal_ts.xy, normal_ts.xy)));
+				
+                float3 normal_ws = normalize(float3(dot(i.t2w0.xyz, normal_ts),
+									dot(i.t2w1.xyz, normal_ts), dot(i.t2w2.xyz, normal_ts)));
+
                 albedo.rgb = pow(albedo.rgb,float3(2.2, 2.2, 2.2));
                 gbuffer0 = float4(albedo.rgb, 0.0);
                 gbuffer1 = float4(normal_ws, 0.0);
                 gbuffer3 = float4(emissive * _emissive_intensity, 1.0);
                 gbuffer4 = mr; // metalic roughness
-                gbuffer5 = float4(0.0, 0.0, 0.0, 0.0);
+                gbuffer5 = float4(0,0,0,0);
             }
             ENDCG
         }

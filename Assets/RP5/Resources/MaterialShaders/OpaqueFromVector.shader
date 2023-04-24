@@ -12,7 +12,7 @@ Shader "Custuom/OpaqueFromVector"
     }
     SubShader
     {
-        Tags { "LightMode"="geometry" }
+        Tags { "LightMode"="OpaqueGeometry" }
 
         Pass
         {
@@ -32,12 +32,7 @@ Shader "Custuom/OpaqueFromVector"
             float _anisotropy;
             VsOutput VSMain(VsInput v) {
                 VsOutput o;
-                float4 postion_ws = mul(unity_ObjectToWorld, v.pos);
-                o.position = mul(view_projection, postion_ws);
-                o.normal = UnityObjectToWorldNormal(v.normal);
-                o.position_ws = postion_ws;
-                half tangentSign = v.tangent.w * unity_WorldTransformParams.w;
-                o.tangent_ws = float4(UnityObjectToWorldDir(v.tangent).xyz, tangentSign);
+                INIT_VS_OUT
                 return o;
             }
 
@@ -49,15 +44,13 @@ Shader "Custuom/OpaqueFromVector"
                 out float4 gbuffer3 : SV_Target3,
                 out float2 gbuffer4 : SV_Target4,
                 out float4 gbuffer5 : SV_Target5) {
-                //float4 normal = tex2D(_normal_map, i.uv);
-                float3 normal = normalize(i.normal); // to [0, 1]
-                float3 tangent_ws = normalize(i.tangent_ws.xyz);
+                float3 normal_ws = normalize(float3(i.t2w0.z, i.t2w1.z, i.t2w2.z));
                 gbuffer0 = float4(_albedo.rgb, 0);
-                gbuffer1 = float4(normal, 0);
+                gbuffer1 = float4(normal_ws, 0);
                 gbuffer2 = float4(_anisotropy, 0.0, 0.0, 0.0);
                 gbuffer3 = float4(_emissive * _emissive_intensity);
                 gbuffer4 = float2(_metallic, _roughness); // metalic roughness
-                gbuffer5 = float4(tangent_ws.x, tangent_ws.y, tangent_ws.z, i.tangent_ws.w);
+                gbuffer5 = float4(i.t2w0.x, i.t2w1.x, i.t2w2.x, _anisotropy);
             }
             ENDCG
         }

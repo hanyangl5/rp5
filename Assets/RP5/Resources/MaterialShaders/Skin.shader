@@ -11,7 +11,7 @@ Shader "Custuom/Skin"
     }
     SubShader
     {
-        Tags { "LightMode"="geometry" }
+        Tags { "LightMode"="OpaqueGeometry" }
 
         Pass
         {
