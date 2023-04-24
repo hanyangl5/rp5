@@ -24,7 +24,7 @@ Shader "Custuom/Opaque"
             #pragma require WaveBasic
             #include "UnityCG.cginc"
             #include "../Shaders/include/vertex_layouts.hlsl"
-
+            #include "../Shaders/include/material.hlsl"
             sampler2D _albedo_tex;
             float4 _albedo_tex_ST;
             sampler2D _metallic_tex;
@@ -60,7 +60,7 @@ Shader "Custuom/Opaque"
 
                 albedo.rgb = pow(albedo.rgb,float3(2.2, 2.2, 2.2));
                 gbuffer0 = float4(albedo.rgb, 0.0);
-                gbuffer1 = float4(normal_ws, 0.0);
+                gbuffer1 = float4(normal_ws, asfloat(MATERIAL_ID_OPAQUE));
 
                 gbuffer3 = float4(emissive * _emissive_intensity, 1.0);
                 gbuffer4 = float2(m, r); // metalic roughness

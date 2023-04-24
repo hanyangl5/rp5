@@ -62,6 +62,8 @@ namespace RP5
 
         LightManager light_manager = new LightManager();
 
+        ScreenSpaceSSS sss_pass = new ScreenSpaceSSS();
+
         TAA taa_pass = new TAA();
 
         MotionVector mv_pass = new MotionVector();
@@ -108,6 +110,7 @@ namespace RP5
             tg.z = 1;
 
             mv_pass.SetUp(width, height);
+            sss_pass.Setup(width, height);
         }
 
         // private void RecreateRenderTargets(int newWidth, int newHeight)
@@ -181,11 +184,6 @@ namespace RP5
             camera.TryGetCullingParameters(out var cullingParameters);
             var culling_result = context.Cull(ref cullingParameters);
 
-            // config settings
-            ShaderTagId shaderTagId = new ShaderTagId("OpaqueGeometry");   // 使用 LightMode 为 gbuffer 的 shader
-            SortingSettings sortingSettings = new SortingSettings(camera);
-            DrawingSettings drawingSettings = new DrawingSettings(shaderTagId, sortingSettings);
-            FilteringSettings filteringSettings = FilteringSettings.defaultValue;
             // Set viewprojection and jitter offsets
 
             // Calculate view projection matrix
@@ -212,8 +210,21 @@ namespace RP5
             view_projection_prev = view_projection;
             jitter_offset_prev = jitter_offset;
 
-            // Draw the renderers
-            context.DrawRenderers(culling_result, ref drawingSettings, ref filteringSettings);
+            // draw by materials
+
+
+            // config settings
+            System.Action<ScriptableRenderContext, Camera, ShaderTagId> drawRenderers = (context, camera, shaderTagId) => {
+                SortingSettings sortingSettings = new SortingSettings(camera);
+                DrawingSettings drawingSettings = new DrawingSettings(shaderTagId, sortingSettings);
+                FilteringSettings filteringSettings = FilteringSettings.defaultValue;
+                // Draw the renderers
+                context.DrawRenderers(culling_result, ref drawingSettings, ref filteringSettings);
+            };
+
+            drawRenderers(context, camera, new ShaderTagId("OpaqueGeometry"));
+            drawRenderers(context, camera, new ShaderTagId("Skin"));
+
 
         }
 
@@ -321,6 +332,11 @@ namespace RP5
             context.ExecuteCommandBuffer(cmd);
         }
 
+        private void SSSSS(ScriptableRenderContext context) {
+            sss_pass.BindResources(depth_rt, history_color, shading_rt, gbuffer_rt[1]);
+            sss_pass.Dispatch(context, tg.x, tg.y, tg.z);
+        }
+
         protected override void Render(ScriptableRenderContext context, Camera[] cameras)
         {
 
@@ -347,6 +363,8 @@ namespace RP5
                         //cmd.Blit(shading_rt, history_color);
                         context.ExecuteCommandBuffer(cmd);
                     }
+
+                    SSSSS(context);
 
                     AntiAliasing(context);
 

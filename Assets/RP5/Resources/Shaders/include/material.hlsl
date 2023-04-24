@@ -1,13 +1,13 @@
 #ifndef MATERIAL_HLSL
 #define MATERIAL_HLSL
 
-#define MATERIAL_OPAQUE
-#define MATERIAL_MASKED
-#define MATERIAL_SKIN
-#define MATERIAL_EYE
-#define MATERIAL_FUR
-#define MATERIAL_TRANSPARENT
-#define MATERIAL_CLOTH
+#define MATERIAL_ID_OPAQUE 0
+#define MATERIAL_ID_MASKED 1
+#define MATERIAL_ID_SKIN 2
+#define MATERIAL_ID_EYE 3
+#define MATERIAL_ID_FUR 4
+#define MATERIAL_ID_TRANSPARENT 5
+#define MATERIAL_ID_CLOTH 6
 
 struct MaterialProperties {
     float3 albedo;

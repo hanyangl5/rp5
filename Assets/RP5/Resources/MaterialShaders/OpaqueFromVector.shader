@@ -22,7 +22,7 @@ Shader "Custuom/OpaqueFromVector"
             #pragma require WaveBasic
             #include "UnityCG.cginc"
             #include "../Shaders/include/vertex_layouts.hlsl"
-            
+            #include "../Shaders/include/material.hlsl"
             float4 _albedo;
             float4 _emissive;
             float _emissive_intensity;
@@ -46,8 +46,8 @@ Shader "Custuom/OpaqueFromVector"
                 out float4 gbuffer5 : SV_Target5) {
                 float3 normal_ws = normalize(float3(i.t2w0.z, i.t2w1.z, i.t2w2.z));
                 gbuffer0 = float4(_albedo.rgb, 0);
-                gbuffer1 = float4(normal_ws, 0);
-                gbuffer2 = float4(_anisotropy, 0.0, 0.0, 0.0);
+                gbuffer1 = float4(normal_ws, asfloat(MATERIAL_ID_OPAQUE));
+                gbuffer2 = float4(0.0, 0.0, 0.0, 0.0);
                 gbuffer3 = float4(_emissive * _emissive_intensity);
                 gbuffer4 = float2(_metallic, _roughness); // metalic roughness
                 gbuffer5 = float4(i.t2w0.x, i.t2w1.x, i.t2w2.x, _anisotropy);

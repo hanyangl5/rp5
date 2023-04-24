@@ -23,7 +23,7 @@ Shader "Custuom/Sphere"
             #pragma require WaveBasic
             #include "UnityCG.cginc"
             #include "../Shaders/include/vertex_layouts.hlsl"
-
+            #include "../Shaders/include/material.hlsl"
             sampler2D _albedo_tex;
             float4 _albedo_tex_ST;
             sampler2D _metallic_roughness_tex;
@@ -54,7 +54,7 @@ Shader "Custuom/Sphere"
 									dot(i.t2w1.xyz, normal_ts), dot(i.t2w2.xyz, normal_ts)));
 
                 gbuffer0 = float4(albedo.rgb, 0.0);
-                gbuffer1 = float4(normal_ws, 0.0);
+                gbuffer1 = float4(normal_ws, asfloat(MATERIAL_ID_OPAQUE));
                 gbuffer3 = float4(emissive * _emissive_intensity, 1.0);
                 gbuffer4 = mr; // metalic roughness
                 gbuffer5 = float4(0,0,0,0);

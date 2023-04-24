@@ -55,7 +55,7 @@ float3 Lighting(MaterialProperties mat, float3 n, float3 v, float3 l, float3 x =
     }
     float3 F = Fresnel_Schlick(mat.f0, bxdf.VoM);
 
-    float3 diffuse = Diffuse_Lambert(mat.albedo) * (1 - mat.metallic) * (1 - F); // TODO(hylu): layered material?
+    float3 diffuse = Diffuse_Lambert(mat.albedo) * (1 - mat.metallic); // TODO(hylu): layered material?
     float3 specular = D * G * F;
     //return float3(D, D, D);
     return (specular + diffuse) * bxdf.NoL; 
