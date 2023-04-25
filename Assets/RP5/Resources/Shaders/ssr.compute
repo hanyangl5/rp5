@@ -1,5 +1,5 @@
 // defines
-#include  "common.hlsl"
+#include  "include/common.hlsl"
 
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel SSR_CS
@@ -12,8 +12,8 @@ RWTexture2D<float4> ssr_tex;
 RWTexture2D<float4> world_pos_tex;
 float3 eye_pos;
 
-[numthreads(FULL_SCREEN_CS_THREAD_X, FULL_SCREEN_CS_THREAD_Y, FULL_SCREEN_CS_THREAD_Z)] void SSR_CS(uint3 id
-                                                                                                    : SV_DispatchThreadID)
+[numthreads(FULL_SCREEN_CS_THREAD_X, FULL_SCREEN_CS_THREAD_Y, FULL_SCREEN_CS_THREAD_Z)] 
+void SSR_CS(uint3 id : SV_DispatchThreadID)
 {
     float depth = depth_stencil_tex[id.xy].x;
     float3 position_ws = world_pos_tex[id.xy].xyz;

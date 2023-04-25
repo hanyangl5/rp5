@@ -32,14 +32,10 @@ namespace RP5
         float2 jitter_offset_prev = new float2(0.0f, 0.0f);
         float2 jitter_offset = new float2(0.0f, 0.0f);
 
-        // RenderTexture previous_color_tex;
-        // RenderTexture ssr_tex;
         // ComputeShader clear_buffer;
         // ComputeShader build_cluster = Resources.Load<ComputeShader>("Shaders/BuildCluster");
         // ComputeShader transform_geometry = Resources.Load<ComputeShader>("Shaders/ObjectTransform");
-        // ComputeShader ssr = Resources.Load<ComputeShader>("Shaders/SSR");
         // ComputeShader composite_shading = Resources.Load<ComputeShader>("Shaders/CompositeShading");
-        // RenderTargetIdentifier ssr_rti;
         // ComputeShader auto_exposure;
 
         // ComputeShader bloom_cs;
@@ -66,7 +62,7 @@ namespace RP5
 
         MotionVector mv_pass = new MotionVector();
         PostProcess post_process_pipeline = new PostProcess();
-
+        SSR ssr_pass = new SSR();
 
         // ctor
         public RP5()
@@ -108,54 +104,8 @@ namespace RP5
             tg.z = 1;
 
             mv_pass.SetUp(width, height);
+            ssr_pass.Setup(width, height);
         }
-
-        // private void RecreateRenderTargets(int newWidth, int newHeight)
-        // {
-        //     width = newWidth;
-        //     height = newHeight;
-
-
-        //     // clean resource
-        //     if (depth_rt != null)
-        //     {
-        //         depth_rt.Release();
-        //     }
-        //     for (int i = 0; i < gbuffer_render_target_count; i++)
-        //     {
-        //         if (gbuffer_rt[i] != null)
-        //             gbuffer_rt[i].Release();
-        //     }
-
-        //     if (shading_rt != null)
-        //     {
-        //         shading_rt.Release();
-        //     }
-
-        //     depth_rt = new RenderTexture(width, height, 24, RenderTextureFormat.Depth, RenderTextureReadWrite.Linear);
-        //     //depth_rt.depthStencilFormat = GraphicsFormat.D32_SFloat_S8_UInt;
-        //     // base color RGBA8888 [8, 8, 8, 8]
-        //     gbuffer_rt[0] = new RenderTexture(width, height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
-        //     // normal [10, 10, 10, 2]
-        //     gbuffer_rt[1] = new RenderTexture(width, height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
-        //     // motion vector[16, 16]
-        //     gbuffer_rt[2] = new RenderTexture(width, height, 0, RenderTextureFormat.RGHalf, RenderTextureReadWrite.Linear);
-        //     // [world pos]
-        //     gbuffer_rt[3] = new RenderTexture(width, height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
-        //     // metallic roughness
-        //     gbuffer_rt[4] = new RenderTexture(width, height, 0, RenderTextureFormat.RG16, RenderTextureReadWrite.Linear);
-
-        //     shading_rt = new RenderTexture(width, height, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
-        //     shading_rt.enableRandomWrite = true;
-
-        //     Shader.SetGlobalTexture("shading_rt", shading_rt);
-
-        //     tg.x = Utils.AlignUp(width, 8);
-        //     tg.y = Utils.AlignUp(height, 8);
-        //     tg.z = 1;
-        // }
-
-
         void LightPass(ScriptableRenderContext context)
         {
             CommandBuffer cmd = new CommandBuffer();
@@ -225,22 +175,8 @@ namespace RP5
 
         void SSRPass(ScriptableRenderContext context)
         {
-
-            // Graphics.SetRandomWriteTarget(0, ssr_tex);
-            // Graphics.ClearRandomWriteTargets();
-
-            // CommandBuffer cmd = new CommandBuffer();
-            // cmd.name = "ssr";
-
-            // int kernel = ssr.FindKernel("SSR_CS");
-            // ssr.SetTexture(kernel, "depth_stencil_tex", depth_rt);
-            // ssr.SetTexture(kernel, "color_tex", shading_rt);
-            // ssr.SetTexture(kernel, "normal_tex", gbuffer_rt[1]);
-            // ssr.SetTexture(kernel, "ssr_tex", ssr_tex);
-            // ssr.SetTexture(kernel, "world_pos_tex", gbuffer_rt[3]);
-            // //ssr.Dispatch(kernel, full_screen_cs_thread_group.x, full_screen_cs_thread_group.y, full_screen_cs_thread_group.z);
-            // cmd.DispatchCompute(ssr, kernel, full_screen_cs_thread_group.x, full_screen_cs_thread_group.y, full_screen_cs_thread_group.z);
-            // context.ExecuteCommandBuffer(cmd);
+            ssr_pass.BindResources(depth_rt, history_color, gbuffer_rt[1]);
+            ssr_pass.Dispatch(context, tg.x, tg.y, tg.z);
         }
 
         void SSAOPass(ScriptableRenderContext context)
@@ -347,6 +283,8 @@ namespace RP5
                         //cmd.Blit(shading_rt, history_color);
                         context.ExecuteCommandBuffer(cmd);
                     }
+
+                    SSRPass(context);
 
                     AntiAliasing(context);
 
