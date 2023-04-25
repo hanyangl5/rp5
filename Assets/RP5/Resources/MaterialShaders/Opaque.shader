@@ -8,7 +8,7 @@ Shader "Custuom/Opaque"
         _metallic_tex("metallic tex", 2D) = "black" {}
         _roughness_tex("roughness tex", 2D) = "white" {}
         [Normal]_normal_map("normal map", 2D) = "black" {}
-        _ao_map_tex("ao map", 2D) = "black" {}
+        
         _emissive_intensity ("emissive_intensity", float) = 1.0
     
     }

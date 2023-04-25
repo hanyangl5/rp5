@@ -2,7 +2,11 @@ fileFormatVersion: 2
 guid: 85426914c22525443a4e866ecf39950b
 ShaderImporter:
   externalObjects: {}
-  defaultTextures: []
+  defaultTextures:
+  - _albedo_tex: {instanceID: 0}
+  - _emissive_tex: {instanceID: 0}
+  - _roughness_tex: {instanceID: 0}
+  - _normal_map: {instanceID: 0}
   nonModifiableTextures: []
   userData: 
   assetBundleName: 

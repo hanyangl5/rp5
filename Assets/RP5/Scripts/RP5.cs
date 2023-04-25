@@ -70,6 +70,8 @@ namespace RP5
         PostProcess post_process_pipeline = new PostProcess();
 
 
+        SRPSetting setting;
+
         // ctor
         public RP5()
         {
@@ -111,53 +113,8 @@ namespace RP5
 
             mv_pass.SetUp(width, height);
             sss_pass.Setup(width, height);
+
         }
-
-        // private void RecreateRenderTargets(int newWidth, int newHeight)
-        // {
-        //     width = newWidth;
-        //     height = newHeight;
-
-
-        //     // clean resource
-        //     if (depth_rt != null)
-        //     {
-        //         depth_rt.Release();
-        //     }
-        //     for (int i = 0; i < gbuffer_render_target_count; i++)
-        //     {
-        //         if (gbuffer_rt[i] != null)
-        //             gbuffer_rt[i].Release();
-        //     }
-
-        //     if (shading_rt != null)
-        //     {
-        //         shading_rt.Release();
-        //     }
-
-        //     depth_rt = new RenderTexture(width, height, 24, RenderTextureFormat.Depth, RenderTextureReadWrite.Linear);
-        //     //depth_rt.depthStencilFormat = GraphicsFormat.D32_SFloat_S8_UInt;
-        //     // base color RGBA8888 [8, 8, 8, 8]
-        //     gbuffer_rt[0] = new RenderTexture(width, height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
-        //     // normal [10, 10, 10, 2]
-        //     gbuffer_rt[1] = new RenderTexture(width, height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
-        //     // motion vector[16, 16]
-        //     gbuffer_rt[2] = new RenderTexture(width, height, 0, RenderTextureFormat.RGHalf, RenderTextureReadWrite.Linear);
-        //     // [world pos]
-        //     gbuffer_rt[3] = new RenderTexture(width, height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
-        //     // metallic roughness
-        //     gbuffer_rt[4] = new RenderTexture(width, height, 0, RenderTextureFormat.RG16, RenderTextureReadWrite.Linear);
-
-        //     shading_rt = new RenderTexture(width, height, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
-        //     shading_rt.enableRandomWrite = true;
-
-        //     Shader.SetGlobalTexture("shading_rt", shading_rt);
-
-        //     tg.x = Utils.AlignUp(width, 8);
-        //     tg.y = Utils.AlignUp(height, 8);
-        //     tg.z = 1;
-        // }
-
 
         void LightPass(ScriptableRenderContext context)
         {
@@ -259,7 +216,6 @@ namespace RP5
 
         }
 
-
         void CompositeShading(ScriptableRenderContext context)
         {
             //CommandBuffer cmd = new CommandBuffer();
@@ -332,9 +288,16 @@ namespace RP5
             context.ExecuteCommandBuffer(cmd);
         }
 
-        private void SSSSS(ScriptableRenderContext context) {
-            sss_pass.BindResources(depth_rt, history_color, shading_rt, gbuffer_rt[1]);
-            sss_pass.Dispatch(context, tg.x, tg.y, tg.z);
+        private void SSSSS(ScriptableRenderContext context)
+        {
+
+            setting = GameObject.Find("SRPSetting").GetComponent<SRPSetting>();
+            if (setting.enable_sssss)
+            {
+                sss_pass.BindResources(depth_rt, history_color, shading_rt, gbuffer_rt[1]);
+                sss_pass.Dispatch(context, tg.x, tg.y, tg.z);
+                sss_pass.CompositeSSS(shading_rt, context, tg.x, tg.y, tg.z);
+            }
         }
 
         protected override void Render(ScriptableRenderContext context, Camera[] cameras)
@@ -342,7 +305,7 @@ namespace RP5
 
             if (cameras.Count() > 0)
             {
-                if (cameras[0].cameraType == CameraType.SceneView)
+                //if (cameras[0].cameraType == CameraType.SceneView)
                 {
                     var camera = cameras[0];
                     context.SetupCameraProperties(camera);

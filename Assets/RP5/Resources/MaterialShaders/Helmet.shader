@@ -7,7 +7,7 @@ Shader "Custuom/Helmet"
         [Emissive, Gamma]_emissive_tex("emissive tex", 2D) = "black" {}
         _metallic_roughness_tex("metallic roughness tex", 2D) = "black" {}
         [Normal]_normal_map("normal map", 2D) = "black" {}
-        _ao_map_tex("ao map", 2D) = "black" {}
+        
         _emissive_intensity ("emissive_intensity", float) = 1.0
     
     }
