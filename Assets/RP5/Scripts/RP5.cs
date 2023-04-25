@@ -193,7 +193,7 @@ namespace RP5
 
             jitter_offset.x = (jitter_offset.x) / width * 2;;
             jitter_offset.y = (jitter_offset.y) / height * 2;;
-            //jitter_offset = jitter_offset_prev = new float2(0.0f, 0.0f);
+            jitter_offset = jitter_offset_prev = new float2(0.0f, 0.0f);
             // offset the projection matrix// divide resolution, offset inside one pixel [-0.5, 0.5]
             projection[0, 2] += (jitter_offset.x);
             projection[1, 2] += (jitter_offset.y);
@@ -360,7 +360,6 @@ namespace RP5
                     {
                         CommandBuffer cmd = new CommandBuffer();
                         cmd.CopyTexture(shading_rt, history_color);
-                        //cmd.Blit(shading_rt, history_color);
                         context.ExecuteCommandBuffer(cmd);
                     }
 

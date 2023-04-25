@@ -51,13 +51,17 @@ Shader "Custuom/Opaque"
                 float m = tex2D(_metallic_tex, i.uv).r;
                 float r = tex2D(_roughness_tex, i.uv).r;
                 float3 emissive = tex2D(_emissive_tex, i.uv).rgb;
-                float3 normal_ts = UnpackNormal(tex2D(_normal_map, i.uv));
+                float4 normal_ts = tex2D(_normal_map, i.uv);
+                float3 normal_ws;
 
-				normal_ts.z = sqrt(1.0 - saturate(dot(normal_ts.xy, normal_ts.xy)));
-				
-                float3 normal_ws = normalize(float3(dot(i.t2w0.xyz, normal_ts),
+                if (all(normal_ts.xyz == float3(0.0, 0.0, 0.0))) {
+                    normal_ws = normalize(float3(i.t2w0.z, i.t2w1.z, i.t2w2.z));
+                } else {
+                    normal_ts.xyz = UnpackNormal(normal_ts);
+				    normal_ts.z = sqrt(1.0 - saturate(dot(normal_ts.xy, normal_ts.xy)));
+                    normal_ws = normalize(float3(dot(i.t2w0.xyz, normal_ts),
 									dot(i.t2w1.xyz, normal_ts), dot(i.t2w2.xyz, normal_ts)));
-
+                }
                 albedo.rgb = pow(albedo.rgb,float3(2.2, 2.2, 2.2));
                 gbuffer0 = float4(albedo.rgb, 0.0);
                 gbuffer1 = float4(normal_ws, asfloat(MATERIAL_ID_OPAQUE));
