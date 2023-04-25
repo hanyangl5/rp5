@@ -1,23 +1,37 @@
 // defines
 #include  "include/common.hlsl"
-
+#include  "include/transform.hlsl"
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel SSR_CS
-// Create a RenderTexture with enableRandomWrite flag and set it
-// with cs.SetTexture
-RWTexture2D<float4> depth_stencil_tex;
-RWTexture2D<float4> normal_tex; // world normal
-RWTexture2D<float4> color_tex;
+#pragma require WaveBallot
+
+Texture2D<float4> depth_stencil_tex;
+Texture2D<float4> color_tex;
+Texture2D<float4> normal_tex; // world normal
 RWTexture2D<float4> ssr_tex;
-RWTexture2D<float4> world_pos_tex;
-float3 eye_pos;
+float4x4 inverse_view_projection;
+float3 world_space_camera_pos;
+
+int width;
+int height;
+int SSR_MARCH_STEP = 64;
+
 
 [numthreads(FULL_SCREEN_CS_THREAD_X, FULL_SCREEN_CS_THREAD_Y, FULL_SCREEN_CS_THREAD_Z)] 
 void SSR_CS(uint3 id : SV_DispatchThreadID)
 {
-    float depth = depth_stencil_tex[id.xy].x;
-    float3 position_ws = world_pos_tex[id.xy].xyz;
-    float3 normal = normal_tex[id.xy].xyz;
-    float3 eye_pos;
-	ssr_tex[id.xy] = float4(0.0, 0.0, 0.0, 1.0); 
+    float depth = depth_stencil_tex.Load(id).x;
+    float2 uv = (float2(id.xy) + 0.5) / float2(width, height);
+    uv = uv * 2.0 - 1.0;
+    float3 position_ws = ComputeWorldPosFromDepth(uv, inverse_view_projection, depth).xyz;
+    float3 normal = normalize(normal_tex.Load(id).xyz);
+    float3 v = normalize(world_space_camera_pos.xyz - position_ws);
+    
+    float3 reflection_dir_ws = reflect(v, normal);
+
+    for (int i =0;i < SSR_MARCH_STEP; i++) {
+
+    }
+
+	ssr_tex[id.xy] = float4(reflection_dir_ws, 1.0); 
 }

@@ -64,6 +64,8 @@ namespace RP5
         PostProcess post_process_pipeline = new PostProcess();
         SSR ssr_pass = new SSR();
 
+        SRPSetting srp_setting;
+
         // ctor
         public RP5()
         {
@@ -141,10 +143,10 @@ namespace RP5
             // Calculate view projection matrix
             Matrix4x4 view = camera.worldToCameraMatrix;
             Matrix4x4 projection = GL.GetGPUProjectionMatrix(camera.nonJitteredProjectionMatrix, true);
-            float2 jitter_offset = taa_pass.GetJitterOffset()  - new float2(0.5f, 0.5f); // [-1, 1]
+            float2 jitter_offset = taa_pass.GetJitterOffset() - new float2(0.5f, 0.5f); // [-1, 1]
 
-            jitter_offset.x = (jitter_offset.x) / width * 2;;
-            jitter_offset.y = (jitter_offset.y) / height * 2;;
+            jitter_offset.x = (jitter_offset.x) / width * 2; ;
+            jitter_offset.y = (jitter_offset.y) / height * 2; ;
             //jitter_offset = jitter_offset_prev = new float2(0.0f, 0.0f);
             // offset the projection matrix// divide resolution, offset inside one pixel [-0.5, 0.5]
             projection[0, 2] += (jitter_offset.x);
@@ -175,7 +177,7 @@ namespace RP5
 
         void SSRPass(ScriptableRenderContext context)
         {
-            ssr_pass.BindResources(depth_rt, history_color, gbuffer_rt[1]);
+            ssr_pass.BindResources(history_depth, history_color, gbuffer_rt[1]);
             ssr_pass.Dispatch(context, tg.x, tg.y, tg.z);
         }
 
@@ -209,7 +211,8 @@ namespace RP5
             post_process_pipeline.Dispatch(context, shading_rt, tg.x, tg.y, tg.z);
         }
 
-        void AntiAliasing(ScriptableRenderContext context) {
+        void AntiAliasing(ScriptableRenderContext context)
+        {
             //taa_pass.BindResources(shading_rt, history_color, mv_pass.mv_tex);
             //taa_pass.Dispatch(context, tg.x, tg.y, tg.z);
         }
@@ -241,7 +244,8 @@ namespace RP5
         }
 
         //ComputeShader build_hzb = Resources.Load<ComputeShader>("Shaders/BuildHzb");
-        private void Misc(ScriptableRenderContext context) {
+        private void Misc(ScriptableRenderContext context)
+        {
             CommandBuffer cmd = new CommandBuffer();
             cmd.Blit(shading_rt, history_color);
             context.ExecuteCommandBuffer(cmd);
@@ -259,6 +263,10 @@ namespace RP5
 
         protected override void Render(ScriptableRenderContext context, Camera[] cameras)
         {
+            if (srp_setting == null)
+            {
+                srp_setting = GameObject.Find("SRPSetting").GetComponent<SRPSetting>();
+            }
 
             if (cameras.Count() > 0)
             {
@@ -284,11 +292,20 @@ namespace RP5
                         context.ExecuteCommandBuffer(cmd);
                     }
 
-                    SSRPass(context);
+                    if (srp_setting.enable_ssr)
+                    {
+                        SSRPass(context);
+                    }
 
-                    AntiAliasing(context);
-
-                    //PostProceePass(context);
+                    if (srp_setting.enable_taa)
+                    {
+                        AntiAliasing(context);
+                    }
+                    
+                    if(srp_setting.enable_post_processsing)
+                    {
+                        PostProceePass(context);
+                    }
 
                     //Misc(context);
 
