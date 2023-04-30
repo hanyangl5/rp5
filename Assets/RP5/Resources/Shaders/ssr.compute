@@ -10,11 +10,14 @@ Texture2D<float4> color_tex;
 Texture2D<float4> normal_tex; // world normal
 RWTexture2D<float4> ssr_tex;
 float4x4 inverse_view_projection;
+float4x4 view_projection;
 float3 world_space_camera_pos;
-
+SamplerState my_linear_clamp_sampler;
 int width;
 int height;
 int SSR_MARCH_STEP = 64;
+
+float ray_distance = 70;
 
 
 [numthreads(FULL_SCREEN_CS_THREAD_X, FULL_SCREEN_CS_THREAD_Y, FULL_SCREEN_CS_THREAD_Z)] 
@@ -23,15 +26,35 @@ void SSR_CS(uint3 id : SV_DispatchThreadID)
     float depth = depth_stencil_tex.Load(id).x;
     float2 uv = (float2(id.xy) + 0.5) / float2(width, height);
     uv = uv * 2.0 - 1.0;
-    float3 position_ws = ComputeWorldPosFromDepth(uv, inverse_view_projection, depth).xyz;
-    float3 normal = normalize(normal_tex.Load(id).xyz);
-    float3 v = normalize(world_space_camera_pos.xyz - position_ws);
+    float3 position_vs = ComputeViewPosFromDepth(uv, inverse_view_projection, depth).xyz;
+    float3 normal_vs = mul(world_to_camera, normalize(normal_tex.Load(id).xyz));
+    float3 v = normalize( -position_vs);
     
-    float3 reflection_dir_ws = reflect(v, normal);
+    float3 reflection_dir_vs = reflect(v, normal_vs);
+    float3 step = 1.0 / ray_distance;
+    float3 p = position_vs;
+    float4 ssr_color;
 
-    for (int i =0;i < SSR_MARCH_STEP; i++) {
+    for (int i = 0; i < SSR_MARCH_STEP; i++) {
+        p += reflection_dir_vs;
+        // to uv space
+        float4 p_cs = mul(projection, float4(p, 1.0));
+        p_cs /= p_cs.w;
 
+        if (p_cs.xy > 1.0 || p_cs.xy < -1.0) {
+            return;
+        }
+
+        float uv = p_cs * 0.5 + 0.5;
+        float sample_depth =
+            depth_stencil_tex.SampleLevel(my_linear_clamp_sampler, uv, 0)
+                .r;
+            // march point is occluded by surface
+            if (p_cs.z > sample_depth && ) {
+            ssr_color = color_tex.SampleLevel(my_linear_clamp_sampler, uv, 0);
+            break;
+        }
     }
 
-	ssr_tex[id.xy] = float4(reflection_dir_ws, 1.0); 
+    ssr_tex[id.xy] = ssr_color;
 }
