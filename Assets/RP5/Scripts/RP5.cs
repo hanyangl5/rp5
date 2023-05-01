@@ -27,10 +27,12 @@ namespace RP5
 
         float3 camera_pos;
 
-        Matrix4x4 view_projection_prev;
-        Matrix4x4 view_projection;
-        float2 jitter_offset_prev = new float2(0.0f, 0.0f);
-        float2 jitter_offset = new float2(0.0f, 0.0f);
+        Matrix4x4 view_projection_prev_non_jittered;
+        Matrix4x4 view_projection_non_jittered;
+        //Matrix4x4 view_projection_prev;
+        //Matrix4x4 view_projection;
+        //float2 jitter_offset_prev = new float2(0.0f, 0.0f);
+        //float2 jitter_offset = new float2(0.0f, 0.0f);
 
         // RenderTexture previous_color_tex;
         // RenderTexture ssr_tex;
@@ -62,7 +64,7 @@ namespace RP5
 
         LightManager light_manager = new LightManager();
 
-        TAA taa_pass = new TAA();
+        Antialiasing aa_pass = new Antialiasing();
 
         //MotionVector mv_pass = new MotionVector();
         PostProcess post_process_pipeline = new PostProcess();
@@ -107,54 +109,7 @@ namespace RP5
             tg.y = Utils.AlignUp(height, 8);
             tg.z = 1;
 
-            //mv_pass.SetUp(width, height);
         }
-
-        // private void RecreateRenderTargets(int newWidth, int newHeight)
-        // {
-        //     width = newWidth;
-        //     height = newHeight;
-
-
-        //     // clean resource
-        //     if (depth_rt != null)
-        //     {
-        //         depth_rt.Release();
-        //     }
-        //     for (int i = 0; i < gbuffer_render_target_count; i++)
-        //     {
-        //         if (gbuffer_rt[i] != null)
-        //             gbuffer_rt[i].Release();
-        //     }
-
-        //     if (shading_rt != null)
-        //     {
-        //         shading_rt.Release();
-        //     }
-
-        //     depth_rt = new RenderTexture(width, height, 24, RenderTextureFormat.Depth, RenderTextureReadWrite.Linear);
-        //     //depth_rt.depthStencilFormat = GraphicsFormat.D32_SFloat_S8_UInt;
-        //     // base color RGBA8888 [8, 8, 8, 8]
-        //     gbuffer_rt[0] = new RenderTexture(width, height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
-        //     // normal [10, 10, 10, 2]
-        //     gbuffer_rt[1] = new RenderTexture(width, height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
-        //     // motion vector[16, 16]
-        //     gbuffer_rt[2] = new RenderTexture(width, height, 0, RenderTextureFormat.RGHalf, RenderTextureReadWrite.Linear);
-        //     // [world pos]
-        //     gbuffer_rt[3] = new RenderTexture(width, height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
-        //     // metallic roughness
-        //     gbuffer_rt[4] = new RenderTexture(width, height, 0, RenderTextureFormat.RG16, RenderTextureReadWrite.Linear);
-
-        //     shading_rt = new RenderTexture(width, height, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
-        //     shading_rt.enableRandomWrite = true;
-
-        //     Shader.SetGlobalTexture("shading_rt", shading_rt);
-
-        //     tg.x = Utils.AlignUp(width, 8);
-        //     tg.y = Utils.AlignUp(height, 8);
-        //     tg.z = 1;
-        // }
-
 
         void LightPass(ScriptableRenderContext context)
         {
@@ -237,20 +192,15 @@ namespace RP5
         }
 
 
-        void MotionVectorPass(ScriptableRenderContext context)
-        {
-            //mv_pass.BindResources(depth_rt);
-            //mv_pass.Dispatch(context, tg.x, tg.y, tg.z);
-        }
-
         void PostProceePass(ScriptableRenderContext context)
         {
             post_process_pipeline.Dispatch(context, shading_rt, tg.x, tg.y, tg.z);
         }
 
         void AntiAliasing(ScriptableRenderContext context) {
-            //taa_pass.BindResources(shading_rt, history_color, mv_pass.mv_tex);
-            //taa_pass.Dispatch(context, tg.x, tg.y, tg.z);
+            //aa_pass.SetAAMethod();
+            aa_pass.BindResources(shading_rt, history_color, gbuffer_rt[2]);
+            aa_pass.Dispatch(context, tg.x, tg.y, tg.z);
         }
 
         void Blit2Screen(ScriptableRenderContext context)
@@ -281,12 +231,12 @@ namespace RP5
             Matrix4x4 view = camera.worldToCameraMatrix;
             Matrix4x4 projection = GL.GetGPUProjectionMatrix(camera.nonJitteredProjectionMatrix, true);
 
-            Matrix4x4 view_projection_non_jittered = projection * view;
+            view_projection_non_jittered = projection * view;
 
             Shader.SetGlobalMatrix("view_projection_non_jittered", view_projection_non_jittered);
-            Shader.SetGlobalMatrix("view_projection_prev_non_jittered", view_projection_prev);
+            Shader.SetGlobalMatrix("view_projection_prev_non_jittered", view_projection_prev_non_jittered);
 
-            jitter_offset = taa_pass.GetJitterOffset()  - new float2(0.5f, 0.5f); // [-0.5, 0.5]
+            float2 jitter_offset = aa_pass.GetJitterOffset()  - new float2(0.5f, 0.5f); // [-0.5, 0.5]
             
             Matrix4x4 projection_jittered = projection;
             // offset the projection matrix
@@ -297,6 +247,8 @@ namespace RP5
             Matrix4x4 view_projection = projection_jittered * view;
             Shader.SetGlobalMatrix("view_projection", view_projection);
             Shader.SetGlobalMatrix("inverse_view_projection", view_projection.inverse);
+
+            view_projection_prev_non_jittered = view_projection_non_jittered;
         }
 
         //ComputeShader build_hzb = Resources.Load<ComputeShader>("Shaders/BuildHzb");
@@ -339,7 +291,6 @@ namespace RP5
                     {
                         CommandBuffer cmd = new CommandBuffer();
                         cmd.CopyTexture(shading_rt, history_color);
-                        //cmd.Blit(shading_rt, history_color);
                         context.ExecuteCommandBuffer(cmd);
                     }
 

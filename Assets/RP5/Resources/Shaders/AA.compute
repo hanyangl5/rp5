@@ -16,17 +16,11 @@ uint height;
 void TAA(uint3 id : SV_DispatchThreadID)
 {
     
+    //float2 uv = id / float2(width, height) - jitter_offset;
     float3 color = color_tex.Load(id).rgb;
     float2 mv = mv_tex.Load(id).rg * float2(width, height);
     uint3 prev_pos = id - uint3(mv.x, mv.y, 0);
     float3 history_color = history_color_tex.Load(prev_pos).rgb;
-    // float depth = depth_stencil_tex.Load(id).r;
-    // float2 uv = (float2(id.xy) + 0.5) / float2(width, height);
-    // uv = uv * 2.0 - 1.0;
-    // float4 clipPos = float4(uv.x, uv.y, depth, 1.0);
-    // clipPos.y = -clipPos.y;
-    // float4 worldPos = mul(inverse_view_projection, clipPos);
-    // worldPos.xyz /= worldPos.w;
     float3 c0 = color_tex.Load(id + uint3(1, 0,0)).xyz;
     float3 c1 = color_tex.Load(id + uint3(-1, 0,0)).xyz;
     float3 c2 = color_tex.Load(id + uint3(0, 1,0)).xyz;
@@ -43,6 +37,5 @@ void TAA(uint3 id : SV_DispatchThreadID)
     float w = w1 / (w0 + w1);
 
     float4 final_color = float4((1.0 - w) * history_color + w * color, 1.0);
-	color_tex[id.xy] = final_color; 
-    //color_tex[id.xy] = float4(color, 1.0);
+	color_tex[id.xy] = final_color;
 }
