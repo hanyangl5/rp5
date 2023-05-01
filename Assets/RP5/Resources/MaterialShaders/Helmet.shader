@@ -19,19 +19,20 @@ Shader "Custuom/Helmet"
         {
             CGPROGRAM
             #pragma require WaveBasic
+            #pragma enable_d3d11_debug_symbols
             #pragma vertex VSMain
             #pragma fragment PSMain
-            #include "UnityCG.cginc"
-            #include  "../Shaders/include/common.hlsl"
-            #include "../Shaders/include/vertex_layouts.hlsl"
+            #include "../Shaders/include/rp5.h"
 
+            DECLARE_SCENE_CONSTANTS
+            
             sampler2D _albedo_tex;
             float4 _albedo_tex_ST;
             sampler2D _metallic_roughness_tex;
             sampler2D _normal_map;
             sampler2D _emissive_tex;
             float _emissive_intensity;
-            float4x4 view_projection; //current jittered view projection matrix
+
 
             VsOutput VSMain(VsInput v) {
                 VsOutput o;
@@ -60,6 +61,7 @@ Shader "Custuom/Helmet"
                 albedo.rgb = pow(albedo.rgb,float3(2.2, 2.2, 2.2));
                 gbuffer0 = float4(albedo.rgb, 0.0);
                 gbuffer1 = float4(normal_ws, 0.0);
+                gbuffer2 = ComputeMotionVector(float4(i.t2w0.w, i.t2w1.w, i.t2w2.w, 1.0), view_projection_non_jittered, view_projection_prev_non_jittered);
                 gbuffer3 = float4(emissive * _emissive_intensity, 1.0);
                 gbuffer4 = mr; // metalic roughness
                 gbuffer5 = float4(0,0,0,0);

@@ -20,16 +20,17 @@ Shader "Custuom/OpaqueFromVector"
             #pragma vertex VSMain
             #pragma fragment PSMain
             #pragma require WaveBasic
-            #include "UnityCG.cginc"
-            #include "../Shaders/include/vertex_layouts.hlsl"
-            
+            #pragma enable_d3d11_debug_symbols
+            #include "../Shaders/include/rp5.h"
+
+            DECLARE_SCENE_CONSTANTS
             float4 _albedo;
             float4 _emissive;
             float _emissive_intensity;
             float _metallic;
             float _roughness;
-            float4x4 view_projection; //current jittered view projection matrix
             float _anisotropy;
+            
             VsOutput VSMain(VsInput v) {
                 VsOutput o;
                 INIT_VS_OUT
@@ -47,7 +48,7 @@ Shader "Custuom/OpaqueFromVector"
                 float3 normal_ws = normalize(float3(i.t2w0.z, i.t2w1.z, i.t2w2.z));
                 gbuffer0 = float4(_albedo.rgb, 0);
                 gbuffer1 = float4(normal_ws, 0);
-                gbuffer2 = float4(_anisotropy, 0.0, 0.0, 0.0);
+                gbuffer2 = ComputeMotionVector(float4(i.t2w0.w, i.t2w1.w, i.t2w2.w, 1.0), view_projection_non_jittered, view_projection_prev_non_jittered);
                 gbuffer3 = float4(_emissive * _emissive_intensity);
                 gbuffer4 = float2(_metallic, _roughness); // metalic roughness
                 gbuffer5 = float4(i.t2w0.x, i.t2w1.x, i.t2w2.x, _anisotropy);

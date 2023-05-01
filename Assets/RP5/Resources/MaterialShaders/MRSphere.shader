@@ -21,8 +21,10 @@ Shader "Custuom/Sphere"
             #pragma vertex VSMain
             #pragma fragment PSMain
             #pragma require WaveBasic
-            #include "UnityCG.cginc"
-            #include "../Shaders/include/vertex_layouts.hlsl"
+            #pragma enable_d3d11_debug_symbols
+            #include "../Shaders/include/rp5.h"
+
+            DECLARE_SCENE_CONSTANTS
 
             sampler2D _albedo_tex;
             float4 _albedo_tex_ST;
@@ -30,7 +32,7 @@ Shader "Custuom/Sphere"
             sampler2D _normal_map;
             sampler2D _emissive_tex;
             float _emissive_intensity;
-            float4x4 view_projection; //current jittered view projection matrix
+            
             VsOutput VSMain(VsInput v) {
                 VsOutput o;
                 INIT_VS_OUT
@@ -52,6 +54,7 @@ Shader "Custuom/Sphere"
  
                 gbuffer0 = float4(albedo.rgb, 0.0);
                 gbuffer1 = float4(normal, 0.0);
+                                gbuffer2 = ComputeMotionVector(float4(i.t2w0.w, i.t2w1.w, i.t2w2.w, 1.0), view_projection_non_jittered, view_projection_prev_non_jittered);
                 gbuffer3 = float4(emissive * _emissive_intensity, 1.0);
                 gbuffer4 = mr; // metalic roughness
                 gbuffer5 = float4(0.0, 0.0, 0.0, 0.0);
