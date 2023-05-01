@@ -64,7 +64,7 @@ namespace RP5
 
         TAA taa_pass = new TAA();
 
-        MotionVector mv_pass = new MotionVector();
+        //MotionVector mv_pass = new MotionVector();
         PostProcess post_process_pipeline = new PostProcess();
 
 
@@ -82,7 +82,7 @@ namespace RP5
             gbuffer_rt[1] = new RenderTexture(width, height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
             // motion vector
             gbuffer_rt[2] = new RenderTexture(width, height, 0, RenderTextureFormat.RGHalf, RenderTextureReadWrite.Linear);
-            // [world pos]
+            // [emissive]
             gbuffer_rt[3] = new RenderTexture(width, height, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
             // metallic roughness
             gbuffer_rt[4] = new RenderTexture(width, height, 0, RenderTextureFormat.RG16, RenderTextureReadWrite.Linear);
@@ -107,7 +107,7 @@ namespace RP5
             tg.y = Utils.AlignUp(height, 8);
             tg.z = 1;
 
-            mv_pass.SetUp(width, height);
+            //mv_pass.SetUp(width, height);
         }
 
         // private void RecreateRenderTargets(int newWidth, int newHeight)
@@ -186,31 +186,6 @@ namespace RP5
             SortingSettings sortingSettings = new SortingSettings(camera);
             DrawingSettings drawingSettings = new DrawingSettings(shaderTagId, sortingSettings);
             FilteringSettings filteringSettings = FilteringSettings.defaultValue;
-            // Set viewprojection and jitter offsets
-
-            // Calculate view projection matrix
-            Matrix4x4 view = camera.worldToCameraMatrix;
-            Matrix4x4 projection = GL.GetGPUProjectionMatrix(camera.nonJitteredProjectionMatrix, true);
-            float2 jitter_offset = taa_pass.GetJitterOffset()  - new float2(0.5f, 0.5f); // [-1, 1]
-
-            jitter_offset.x = (jitter_offset.x) / width * 2;;
-            jitter_offset.y = (jitter_offset.y) / height * 2;;
-            //jitter_offset = jitter_offset_prev = new float2(0.0f, 0.0f);
-            // offset the projection matrix// divide resolution, offset inside one pixel [-0.5, 0.5]
-            projection[0, 2] += (jitter_offset.x);
-            projection[1, 2] += (jitter_offset.y);
-
-            jitter_offset = jitter_offset_prev = new float2(0.0f, 0.0f);
-
-            Matrix4x4 view_projection = projection * view;
-            //camera.previousViewProjectionMatrix;
-            Shader.SetGlobalMatrix("view_projection_prev", view_projection_prev);
-            Shader.SetGlobalMatrix("view_projection", view_projection);
-            Shader.SetGlobalVector("jitter_offset_prev", jitter_offset_prev);
-            Shader.SetGlobalVector("jitter_offset", jitter_offset);
-            Shader.SetGlobalMatrix("inverse_view_projection", view_projection.inverse);
-            view_projection_prev = view_projection;
-            jitter_offset_prev = jitter_offset;
 
             // Draw the renderers
             context.DrawRenderers(culling_result, ref drawingSettings, ref filteringSettings);
@@ -264,8 +239,8 @@ namespace RP5
 
         void MotionVectorPass(ScriptableRenderContext context)
         {
-            mv_pass.BindResources(depth_rt);
-            mv_pass.Dispatch(context, tg.x, tg.y, tg.z);
+            //mv_pass.BindResources(depth_rt);
+            //mv_pass.Dispatch(context, tg.x, tg.y, tg.z);
         }
 
         void PostProceePass(ScriptableRenderContext context)
@@ -289,7 +264,7 @@ namespace RP5
         }
 
 
-        private void Setup(ScriptableRenderContext context)
+        private void Update(ScriptableRenderContext context, Camera camera)
         {
 
             CommandBuffer cmd = new CommandBuffer();
@@ -301,7 +276,27 @@ namespace RP5
             cmd.ClearRenderTarget(true, true, Color.black);
             Shader.SetGlobalInteger("width", width);
             Shader.SetGlobalInteger("height", height);
+            
+            // Calculate view projection matrix
+            Matrix4x4 view = camera.worldToCameraMatrix;
+            Matrix4x4 projection = GL.GetGPUProjectionMatrix(camera.nonJitteredProjectionMatrix, true);
 
+            Matrix4x4 view_projection_non_jittered = projection * view;
+
+            Shader.SetGlobalMatrix("view_projection_non_jittered", view_projection_non_jittered);
+            Shader.SetGlobalMatrix("view_projection_prev_non_jittered", view_projection_prev);
+
+            jitter_offset = taa_pass.GetJitterOffset()  - new float2(0.5f, 0.5f); // [-0.5, 0.5]
+            
+            Matrix4x4 projection_jittered = projection;
+            // offset the projection matrix
+            // divide resolution, offset inside one pixel [-0.5, 0.5]
+            projection_jittered[0, 2] += (jitter_offset.x/ width * 2);
+            projection_jittered[1, 2] += (jitter_offset.y/ height * 2);
+
+            Matrix4x4 view_projection = projection_jittered * view;
+            Shader.SetGlobalMatrix("view_projection", view_projection);
+            Shader.SetGlobalMatrix("inverse_view_projection", view_projection.inverse);
         }
 
         //ComputeShader build_hzb = Resources.Load<ComputeShader>("Shaders/BuildHzb");
@@ -331,9 +326,9 @@ namespace RP5
                     var camera = cameras[0];
                     context.SetupCameraProperties(camera);
                     camera_pos = camera.transform.position;
-                    Setup(context);
+                    Update(context, camera);
                     light_manager.Setup(context, scene_constants_data);
-
+                    
                     GeometryPasss(context, camera);
 
                     LightPass(context);
