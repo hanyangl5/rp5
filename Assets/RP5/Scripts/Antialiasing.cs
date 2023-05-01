@@ -7,12 +7,23 @@ namespace RP5
 {
 
     using float2 = UnityEngine.Vector2;
-    public class TAA
+    
+    enum AAMethod
     {
-        public TAA()
+        DEFERRED_MSAA = 0,
+        SMAA = 1,
+        TAA = 2,
+        FSR2 = 3,
+        DLSS = 4,
+    }
+
+    public class Antialiasing
+    {
+        public Antialiasing()
         {
 
         }
+
 
         public float2 GetJitterOffset()
         {
@@ -20,22 +31,23 @@ namespace RP5
             idx = (idx + 1) % halton_samples.Length;
             return result;
         }
-        ComputeShader taa = Resources.Load<ComputeShader>("Shaders/TAA");
+
+        ComputeShader aa_cs = Resources.Load<ComputeShader>("Shaders/AA");
 
         public void BindResources(RenderTexture color_tex, RenderTexture history_color_tex, RenderTexture mv_tex)
         {
-            int kernel = taa.FindKernel("TAA");
-            taa.SetTexture(kernel, "history_color_tex", history_color_tex);
-            taa.SetTexture(kernel, "color_tex", color_tex);
-            taa.SetTexture(kernel, "mv_tex", mv_tex);
+            int kernel = aa_cs.FindKernel("TAA");
+            aa_cs.SetTexture(kernel, "history_color_tex", history_color_tex);
+            aa_cs.SetTexture(kernel, "color_tex", color_tex);
+            aa_cs.SetTexture(kernel, "mv_tex", mv_tex);
 
         }
         public void Dispatch(ScriptableRenderContext context, int x, int y, int z)
         {
             CommandBuffer cmd = new CommandBuffer();
-            cmd.name = "taa";
-            int kernel = taa.FindKernel("TAA");
-            cmd.DispatchCompute(taa, kernel, x, y, z);
+            cmd.name = "Antialiasing";
+            int kernel = aa_cs.FindKernel("TAA");
+            cmd.DispatchCompute(aa_cs, kernel, x, y, z);
             context.ExecuteCommandBuffer(cmd);
         }
 

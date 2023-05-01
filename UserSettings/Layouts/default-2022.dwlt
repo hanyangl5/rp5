@@ -18,8 +18,11 @@ MonoBehaviour:
     y: 42
     width: 1440
     height: 810
+    y: 42
+    width: 1440
+    height: 810
   m_ShowMode: 4
-  m_Title: Inspector
+  m_Title: Project
   m_RootView: {fileID: 7}
   m_MinSize: {x: 875, y: 300}
   m_MaxSize: {x: 10000, y: 10000}
@@ -177,6 +180,8 @@ MonoBehaviour:
     y: 0
     width: 1440
     height: 810
+    width: 1440
+    height: 810
   m_MinSize: {x: 875, y: 300}
   m_MaxSize: {x: 10000, y: 10000}
   m_UseTopView: 1
@@ -201,6 +206,7 @@ MonoBehaviour:
     x: 0
     y: 0
     width: 1440
+    width: 1440
     height: 30
   m_MinSize: {x: 0, y: 0}
   m_MaxSize: {x: 0, y: 0}
@@ -221,6 +227,8 @@ MonoBehaviour:
   m_Position:
     serializedVersion: 2
     x: 0
+    y: 790
+    width: 1440
     y: 790
     width: 1440
     height: 20
@@ -245,6 +253,8 @@ MonoBehaviour:
     serializedVersion: 2
     x: 0
     y: 30
+    width: 1440
+    height: 760
     width: 1440
     height: 760
   m_MinSize: {x: 300, y: 100}
@@ -385,6 +395,7 @@ MonoBehaviour:
   m_LastFolders:
   - Assets
   m_LastFoldersGridSize: 44
+  m_LastProjectPath: C:\hanyanglu\rp5
   m_LastProjectPath: C:\hanyanglu\rp5
   m_LockTracker:
     m_IsLocked: 0
@@ -1022,6 +1033,7 @@ MonoBehaviour:
     showParticleSystems: 1
     showVisualEffectGraphs: 1
     m_FxEnabled: 1
+    m_FxEnabled: 1
   m_Grid:
     xGrid:
       m_Fade:
@@ -1055,6 +1067,7 @@ MonoBehaviour:
     speed: 2
     m_Value: {x: 0.49051958, y: -0.0753596, z: 0.042629447, w: 0.86711836}
   m_Size:
+    m_Target: 2.5439594
     m_Target: 2.5439594
     speed: 2
     m_Value: 12.050849

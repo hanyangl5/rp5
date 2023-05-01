@@ -10,9 +10,6 @@ struct VsInputDefault {
 struct PsInputDefault {
     float2 uv : TEXCOORD0;
     float4 position : SV_POSITION;
-    //float3 normal : NORMAL;
-    //float4 position_ws : TEXCOORD02;
-    //float4 tangent_ws : TANGENT;
     float4 t2w0 : TEXCOORD1;
     float4 t2w1 : TEXCOORD2;
     float4 t2w2 : TEXCOORD3;//xyz 存储着 从切线空间到世界空间的矩阵，w存储着世界坐标
@@ -21,6 +18,13 @@ struct PsInputDefault {
 typedef VsInputDefault VsInput;
 typedef PsInputDefault PsInput;
 typedef PsInput VsOutput;
+
+#define DECLARE_SCENE_CONSTANTS \
+float4x4 view_projection_non_jittered; \
+float4x4 view_projection_prev_non_jittered; \
+float4x4 view_projection; \
+int width; \
+int height; \
 
 #define INIT_VS_OUT \
 float4 postion_ws = mul(unity_ObjectToWorld, v.pos); \
