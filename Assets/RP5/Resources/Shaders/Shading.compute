@@ -75,8 +75,7 @@ void CSMain(uint3 id : SV_DispatchThreadID) {
     }
     
     float2 uv = (float2(id.xy) + 0.5) / float2(width, height);
-    uv = uv * 2.0 - 1.0;
-    float3 position_ws = ComputeWorldPosFromDepth(uv, inverse_view_projection, depth).xyz;
+    float3 position_ws = ComputePositionWsFromDepth(uv, inverse_view_projection, depth).xyz;
     // Load albedo, n, and mr from gbuffer
     float3 albedo = gbuffer0.Load(id.xyz).rgb;
     float3 n = gbuffer1.Load(id.xyz).rgb;

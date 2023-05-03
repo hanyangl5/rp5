@@ -1,7 +1,13 @@
-// defines
+/*
+Screen Space Reflection 
+
+1. screen space marching instead of 3d space marching
+2. reduce divergence using rasterization
+
+*/
 #include  "include/common.hlsl"
 #include  "include/transform.hlsl"
-// Each #kernel tells which function to compile; you can have many kernels
+
 #pragma kernel SSR_CS
 #pragma require WaveBallot
 
@@ -15,27 +21,46 @@ float3 world_space_camera_pos;
 SamplerState my_linear_clamp_sampler;
 int width;
 int height;
-int SSR_MARCH_STEP = 64;
+float camera_near_plane;
 
-float ray_distance = 70;
+float SSR_MAX_RAY_DISTANCE = 70;
+float SSR_DEPTH_THICKNESS = 1.0;
+float SSR_MARCH_QUALITY = 1.0;
+// line rasterization
 
+float2 GetUvFromPositionVs(float4 position_vs, float4x4 projection) {
+    float4 position_cs = mul(projection, position_vs);
+    position_cs /= position_cs.w;
+    return (position_cs.xy * 0.5 + 0.5);
+}
 
 [numthreads(FULL_SCREEN_CS_THREAD_X, FULL_SCREEN_CS_THREAD_Y, FULL_SCREEN_CS_THREAD_Z)] 
 void SSR_CS(uint3 id : SV_DispatchThreadID)
 {
     float depth = depth_stencil_tex.Load(id).x;
     float2 uv = (float2(id.xy) + 0.5) / float2(width, height);
-    uv = uv * 2.0 - 1.0;
-    float3 position_vs = ComputeViewPosFromDepth(uv, inverse_view_projection, depth).xyz;
+    float3 position_vs = ComputePositionVsFromDepth(uv, inverse_projection, depth).xyz;
     float3 normal_vs = mul(world_to_camera, normalize(normal_tex.Load(id).xyz));
-    float3 v = normalize( -position_vs);
-    
-    float3 reflection_dir_vs = reflect(v, normal_vs);
-    float3 step = 1.0 / ray_distance;
-    float3 p = position_vs;
-    float4 ssr_color;
+    float3 v = normalize(-position_vs);
 
+    float3 reflection_dir_vs = reflect(v, normal_vs);
+    float3 origin_vs = position_vs;
+
+    // reflection dir is always towards screen, end point can be clamp to near plane
+    float ray_length =
+    ((origin_vs.z + reflection_dir_vs.z * SSR_MAX_RAY_DISTANCE) > camera_near_plane)
+    ? (camera_near_plane - origin_vs.z) / reflection_dir_vs.z
+    : SSR_MAX_RAY_DISTANCE;
+    float3 end_vs = reflection_dir_vs * ray_length + origin_vs;
+
+    float2 p0 = GetUvFromPositionVs(origin_vs, projection);
+    float2 p1 = GetUvFromPositionVs(end_vs, projection);
+
+    float slope = (p1.y - p0.y) / (p1.x - p0.x);
+    float sign = 
+    // GPU DDA line rasterization
     for (int i = 0; i < SSR_MARCH_STEP; i++) {
+        p += i * sign * SSR_MARCH_QUALITY * slope;
         p += reflection_dir_vs;
         // to uv space
         float4 p_cs = mul(projection, float4(p, 1.0));
@@ -50,9 +75,10 @@ void SSR_CS(uint3 id : SV_DispatchThreadID)
             depth_stencil_tex.SampleLevel(my_linear_clamp_sampler, uv, 0)
                 .r;
             // march point is occluded by surface
-            if (p_cs.z > sample_depth && ) {
+            if (p_cs.z > sample_depth && (p_cs.z - sample_depth) < SSR_TRACE_THICKNESS) {
             ssr_color = color_tex.SampleLevel(my_linear_clamp_sampler, uv, 0);
             break;
+            }
         }
     }
 
