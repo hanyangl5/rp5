@@ -1,5 +1,5 @@
 /*
-Screen Space Reflection 
+Screen Space Reflection
 
 1. screen space marching instead of 3d space marching
 2. reduce divergence using rasterization
@@ -7,7 +7,7 @@ Screen Space Reflection
 */
 #include  "include/common.hlsl"
 #include  "include/transform.hlsl"
-
+#include  "include/scene_constant.hlsl"
 #pragma kernel SSR_CS
 #pragma require WaveBallot
 
@@ -15,13 +15,8 @@ Texture2D<float4> depth_stencil_tex;
 Texture2D<float4> color_tex;
 Texture2D<float4> normal_tex; // world normal
 RWTexture2D<float4> ssr_tex;
-float4x4 inverse_view_projection;
-float4x4 view_projection;
-float3 world_space_camera_pos;
+DECLARE_SCENE_CONSTANTS
 SamplerState my_linear_clamp_sampler;
-int width;
-int height;
-float camera_near_plane;
 
 float SSR_MAX_RAY_DISTANCE = 70;
 float SSR_DEPTH_THICKNESS = 1.0;
@@ -34,53 +29,244 @@ float2 GetUvFromPositionVs(float4 position_vs, float4x4 projection) {
     return (position_cs.xy * 0.5 + 0.5);
 }
 
-[numthreads(FULL_SCREEN_CS_THREAD_X, FULL_SCREEN_CS_THREAD_Y, FULL_SCREEN_CS_THREAD_Z)] 
+float2 cb_depthBufferSize; // dimensions of the z-buffer
+float cb_zThickness; // thickness to ascribe to each pixel in the depth buffer
+float cb_nearPlaneZ; // the camera's near z plane
+
+float cb_stride; // Step in horizontal or vertical pixels between samples. This is a float
+// because integer math is slow on GPUs, but should be set to an integer >= 1.
+float cb_maxSteps; // Maximum number of iterations. Higher gives better images but may be slow.
+float cb_maxDistance; // Maximum camera-space distance to trace before returning a miss.
+float cb_strideZCutoff; // More distant pixels are smaller in screen space. This value tells at what point to
+// start relaxing the stride to give higher quality reflections for objects far from
+// the camera.
+
+float cb_numMips; // the number of mip levels in the convolved color buffer
+float cb_fadeStart; // determines where to start screen edge fading of effect
+float cb_fadeEnd; // determines where to end screen edge fading of effect
+float4x4 viewToTextureSpaceMatrix;
+
+float distanceSquared(float2 a, float2 b)
+{
+    a -= b;
+    return dot(a, a);
+}
+
+bool intersectsDepthBuffer(float z, float minZ, float maxZ)
+{
+    /*
+     * Based on how far away from the camera the depth is,
+     * adding a bit of extra thickness can help improve some
+     * artifacts. Driving this value up too high can cause
+     * artifacts of its own.
+     */
+    float depthScale = min(1.0f, z * cb_strideZCutoff);
+    z += cb_zThickness + lerp(0.0f, 2.0f, depthScale);
+    return (maxZ >= z) && (minZ - cb_zThickness <= z);
+}
+
+void swap(inout float a, inout float b)
+{
+    float t = a;
+    a = b;
+    b = t;
+}
+
+float linearizeDepth(float x) {
+    return x;
+}
+
+float linearDepthTexelFetch(int2 hitPixel)
+{
+    // Load returns 0 for any value accessed out of bounds
+    return linearizeDepth(depth_stencil_tex.Load(int3(hitPixel, 0)).r);
+}
+
+// Returns true if the ray hit something
+bool traceScreenSpaceRay(
+    // Camera-space ray origin, which must be within the view volume
+    float3 csOrig,
+    // Unit length camera-space ray direction
+    float3 csDir,
+    // Number between 0 and 1 for how far to bump the ray in stride units
+    // to conceal banding artifacts. Not needed if stride == 1.
+    float jitter,
+    // Pixel coordinates of the first intersection with the scene
+    out float2 hitPixel,
+    // Camera space location of the ray hit
+    out float3 hitPoint)
+{
+    // Clip to the near plane
+    float rayLength = ((csOrig.z + csDir.z * cb_maxDistance) < cb_nearPlaneZ) ?
+    (cb_nearPlaneZ - csOrig.z) / csDir.z : cb_maxDistance;
+    float3 csEndPoint = csOrig + csDir * rayLength;
+
+    // Project into homogeneous clip space
+    float4 H0 = mul(float4(csOrig, 1.0f), viewToTextureSpaceMatrix);
+    H0.xy *= cb_depthBufferSize;
+    float4 H1 = mul(float4(csEndPoint, 1.0f), viewToTextureSpaceMatrix);
+    H1.xy *= cb_depthBufferSize;
+    float k0 = 1.0f / H0.w;
+    float k1 = 1.0f / H1.w;
+
+    // The interpolated homogeneous version of the camera-space points
+    float3 Q0 = csOrig * k0;
+    float3 Q1 = csEndPoint * k1;
+
+    // Screen-space endpoints
+    float2 P0 = H0.xy * k0;
+    float2 P1 = H1.xy * k1;
+
+    // If the line is degenerate, make it cover at least one pixel
+    // to avoid handling zero-pixel extent as a special case later
+    P1 += (distanceSquared(P0, P1) < 0.0001f) ? float2(0.01f, 0.01f) : 0.0f;
+    float2 delta = P1 - P0;
+
+    // Permute so that the primary iteration is in x to collapse
+    // all quadrant-specific DDA cases later
+    bool permute = false;
+    if(abs(delta.x) < abs(delta.y))
+    {
+        // This is a more-vertical line
+        permute = true;
+        delta = delta.yx;
+        P0 = P0.yx;
+        P1 = P1.yx;
+    }
+
+    float stepDir = sign(delta.x);
+    float invdx = stepDir / delta.x;
+
+    // Track the derivatives of Q and k
+    float3 dQ = (Q1 - Q0) * invdx;
+    float dk = (k1 - k0) * invdx;
+    float2 dP = float2(stepDir, delta.y * invdx);
+
+    // Scale derivatives by the desired pixel stride and then
+    // offset the starting values by the jitter fraction
+    float strideScale = 1.0f - min(1.0f, csOrig.z * cb_strideZCutoff);
+    float stride = 1.0f + strideScale * cb_stride;
+    dP *= stride;
+    dQ *= stride;
+    dk *= stride;
+
+    P0 += dP * jitter;
+    Q0 += dQ * jitter;
+    k0 += dk * jitter;
+
+    // Slide P from P0 to P1, (now-homogeneous) Q from Q0 to Q1, k from k0 to k1
+    float4 PQk = float4(P0, Q0.z, k0);
+    float4 dPQk = float4(dP, dQ.z, dk);
+    float3 Q = Q0; 
+
+    // Adjust end condition for iteration direction
+    float end = P1.x * stepDir;
+
+    float stepCount = 0.0f;
+    float prevZMaxEstimate = csOrig.z;
+    float rayZMin = prevZMaxEstimate;
+    float rayZMax = prevZMaxEstimate;
+    float sceneZMax = rayZMax + 100.0f;
+    for(;
+        ((PQk.x * stepDir) <= end) && (stepCount < cb_maxSteps) &&
+        !intersectsDepthBuffer(sceneZMax, rayZMin, rayZMax) &&
+        (sceneZMax != 0.0f);
+        ++stepCount)
+    {
+        rayZMin = prevZMaxEstimate;
+        rayZMax = (dPQk.z * 0.5f + PQk.z) / (dPQk.w * 0.5f + PQk.w);
+        prevZMaxEstimate = rayZMax;
+        if(rayZMin > rayZMax)
+        {
+            swap(rayZMin, rayZMax);
+        }
+
+        hitPixel = permute ? PQk.yx : PQk.xy;
+        // You may need hitPixel.y = depthBufferSize.y - hitPixel.y; here if your vertical axis
+        // is different than ours in screen space
+        sceneZMax = linearDepthTexelFetch(int2(hitPixel));
+
+        PQk += dPQk;
+    }
+
+    // Advance Q based on the number of steps
+    Q.xy += dQ.xy * stepCount;
+    hitPoint = Q * (1.0f / PQk.w);
+    return intersectsDepthBuffer(sceneZMax, rayZMin, rayZMax);
+}
+
+[numthreads(FULL_SCREEN_CS_THREAD_X, FULL_SCREEN_CS_THREAD_Y, FULL_SCREEN_CS_THREAD_Z)]
 void SSR_CS(uint3 id : SV_DispatchThreadID)
 {
     float depth = depth_stencil_tex.Load(id).x;
     float2 uv = (float2(id.xy) + 0.5) / float2(width, height);
-    float3 position_vs = ComputePositionVsFromDepth(uv, inverse_projection, depth).xyz;
-    float3 normal_vs = mul(world_to_camera, normalize(normal_tex.Load(id).xyz));
+    float3 position_vs = ComputePositionVsFromDepth(uv, projection_inv, depth).xyz;
+    float3 normal_vs = mul(world_to_camera, float4(normalize(normal_tex.Load(id).xyz), 0.0)).xyz;
     float3 v = normalize(-position_vs);
 
     float3 reflection_dir_vs = reflect(v, normal_vs);
     float3 origin_vs = position_vs;
+    float2 hit_pixel;
+    float3 hit_point;
+    bool intersection = traceScreenSpaceRay(origin_vs, reflection_dir_vs, 0, hit_pixel, hit_point);
 
-    // reflection dir is always towards screen, end point can be clamp to near plane
-    float ray_length =
-    ((origin_vs.z + reflection_dir_vs.z * SSR_MAX_RAY_DISTANCE) > camera_near_plane)
-    ? (camera_near_plane - origin_vs.z) / reflection_dir_vs.z
-    : SSR_MAX_RAY_DISTANCE;
-    float3 end_vs = reflection_dir_vs * ray_length + origin_vs;
-
-    float2 p0 = GetUvFromPositionVs(origin_vs, projection);
-    float2 p1 = GetUvFromPositionVs(end_vs, projection);
-
-    float slope = (p1.y - p0.y) / (p1.x - p0.x);
-    float sign = 
-    // GPU DDA line rasterization
-    for (int i = 0; i < SSR_MARCH_STEP; i++) {
-        p += i * sign * SSR_MARCH_QUALITY * slope;
-        p += reflection_dir_vs;
-        // to uv space
-        float4 p_cs = mul(projection, float4(p, 1.0));
-        p_cs /= p_cs.w;
-
-        if (p_cs.xy > 1.0 || p_cs.xy < -1.0) {
-            return;
-        }
-
-        float uv = p_cs * 0.5 + 0.5;
-        float sample_depth =
-            depth_stencil_tex.SampleLevel(my_linear_clamp_sampler, uv, 0)
-                .r;
-            // march point is occluded by surface
-            if (p_cs.z > sample_depth && (p_cs.z - sample_depth) < SSR_TRACE_THICKNESS) {
-            ssr_color = color_tex.SampleLevel(my_linear_clamp_sampler, uv, 0);
-            break;
-            }
-        }
+    depth = depth_stencil_tex.Load(int3(hit_pixel, 0)).x;
+    hit_pixel.xy /= float2(width, height);
+    if(hit_pixel.x > 1.0f || hit_pixel.x < 0.0f || hit_pixel.y > 1.0f || hit_pixel.y < 0.0f)
+    {
+        intersection = false;
     }
-
-    ssr_tex[id.xy] = ssr_color;
+    float RoV = dot(v, reflection_dir_vs);
+    ssr_tex[id.xy] = float4(hit_pixel, depth, RoV) * (intersection ? 1.0f : 0.0f);
+    // reflection dir is always towards screen, end point can be clamp to near plane
 }
+
+// [numthreads(FULL_SCREEN_CS_THREAD_X, FULL_SCREEN_CS_THREAD_Y, FULL_SCREEN_CS_THREAD_Z)]
+// void SSR_CS(uint3 id : SV_DispatchThreadID)
+// {
+//     float depth = depth_stencil_tex.Load(id).x;
+//     float2 uv = (float2(id.xy) + 0.5) / float2(width, height);
+//     float3 position_vs = ComputePositionVsFromDepth(uv, inverse_projection, depth).xyz;
+//     float3 normal_vs = mul(world_to_camera, normalize(normal_tex.Load(id).xyz));
+//     float3 v = normalize(-position_vs);
+
+//     float3 reflection_dir_vs = reflect(v, normal_vs);
+//     float3 origin_vs = position_vs;
+
+//     // reflection dir is always towards screen, end point can be clamp to near plane
+//     float ray_length =
+//         ((origin_vs.z + reflection_dir_vs.z * SSR_MAX_RAY_DISTANCE) > camera_near_plane)
+//         ? (camera_near_plane - origin_vs.z) / reflection_dir_vs.z
+//         : SSR_MAX_RAY_DISTANCE;
+//     float3 end_vs = reflection_dir_vs * ray_length + origin_vs;
+
+//     float2 p0 = GetUvFromPositionVs(origin_vs, projection);
+//     float2 p1 = GetUvFromPositionVs(end_vs, projection);
+
+//     float slope = (p1.y - p0.y) / (p1.x - p0.x);
+//     float sign =
+//         // GPU DDA line rasterization
+//         for (int i = 0; i < SSR_MARCH_STEP; i++) {
+//             p += i * sign * SSR_MARCH_QUALITY * slope;
+//             p += reflection_dir_vs;
+//             // to uv space
+//             float4 p_cs = mul(projection, float4(p, 1.0));
+//             p_cs /= p_cs.w;
+
+//             if (p_cs.xy > 1.0 || p_cs.xy < -1.0) {
+//                 return;
+//             }
+
+//             float uv = p_cs * 0.5 + 0.5;
+//             float sample_depth =
+//                 depth_stencil_tex.SampleLevel(my_linear_clamp_sampler, uv, 0)
+//                 .r;
+//             // march point is occluded by surface
+//             if (p_cs.z > sample_depth && (p_cs.z - sample_depth) < SSR_TRACE_THICKNESS) {
+//                 ssr_color = color_tex.SampleLevel(my_linear_clamp_sampler, uv, 0);
+//                 break;
+//             }
+//         }
+
+//     ssr_tex[id.xy] = ssr_color;
+// }

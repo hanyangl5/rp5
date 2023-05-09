@@ -5,11 +5,15 @@ using UnityEngine;
 
 namespace RP5
 {
+    using float3 = UnityEngine.Vector3;
+    using float2 = UnityEngine.Vector2;
     public class SSR
     {
         RenderTexture ssr_tex;
         ComputeShader ssr = Resources.Load<ComputeShader>("Shaders/SSR");
         int kernel;
+
+ 
         public void Setup(int width, int height) 
         {
             kernel = ssr.FindKernel("SSR_CS");
@@ -22,6 +26,7 @@ namespace RP5
             ssr.SetTexture(kernel, "color_tex", history_color);
             ssr.SetTexture(kernel, "normal_tex", normal);
             ssr.SetTexture(kernel, "ssr_tex", ssr_tex);
+            
         }
 
         public void Dispatch(ScriptableRenderContext context, int x, int y, int z) {

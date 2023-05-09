@@ -12,7 +12,7 @@
 #include "include/debug.hlsl"
 #include "include/common_math.hlsl"
 #include "include/transform.hlsl"
-
+#include "include/scene_constant.hlsl"
 Texture2D<float4> gdepth;
 Texture2D<float4> gbuffer0; // world n
 Texture2D<float4> gbuffer1;
@@ -26,16 +26,13 @@ uint directional_light_count;
 uint point_light_count;
 uint spot_light_count;
 uint pad0;
-float3 world_space_camera_pos;
 
-float4x4 inverse_view_projection;
-
-uint width;
-uint height;
 
 StructuredBuffer<DirectionalLight> directional_lights;
 StructuredBuffer<PointLight> point_lights;
 StructuredBuffer<SpotLight> spot_lights;
+
+DECLARE_SCENE_CONSTANTS
 
 float3 Lighting(MaterialProperties mat, float3 n, float3 v, float3 l, float3 x = 0.0, float3 y = 0.0) {
     // Calculate diffuse and specular components
@@ -64,33 +61,28 @@ float3 Lighting(MaterialProperties mat, float3 n, float3 v, float3 l, float3 x =
 [numthreads(FULL_SCREEN_CS_THREAD_X, FULL_SCREEN_CS_THREAD_Y, FULL_SCREEN_CS_THREAD_Z)] 
 void CSMain(uint3 id : SV_DispatchThreadID) {
     if (id.x >= width || id.y >= height) {
-        shading_rt[id.xy] = float4(0.0,0.0,0.0,1.0);
+        shading_rt[id.xy] = float4(0.0, 0.0, 0.0, 1.0);
         return;
     }
     float depth = gdepth.Load(id.xyz).r;
     // Check if the gbuffer pixel is invalid
     if(Equal(depth, 0.0) == 0.0) {
-        shading_rt[id.xy] = float4(0.0,0.0,0.0,1.0);
+        shading_rt[id.xy] = float4(0.0, 0.0, 0.0, 1.0);
         return;
     }
     
     float2 uv = (float2(id.xy) + 0.5) / float2(width, height);
-    float3 position_ws = ComputePositionWsFromDepth(uv, inverse_view_projection, depth).xyz;
+    float3 position_ws = ComputePositionWsFromDepth(uv, projection_inv, depth).xyz;
     // Load albedo, n, and mr from gbuffer
     float3 albedo = gbuffer0.Load(id.xyz).rgb;
     float3 n = gbuffer1.Load(id.xyz).rgb;
-    //float anisotropy  = gbuffer2.Load(id).r;
-    
-    //float4 tangent_sign = gbuffer5.Load(id);
-    //float3 x = tangent_sign.xyz;
-    //float3 y = normalize(cross(n, x));
-    //float3 y = normalize(cross(n, x));
+
     float3 x = 0.0;
     float3 y = 0.0; 
     float3 emissive = gbuffer3.Load(id.xyz).rgb;
     float2 mr = gbuffer4.Load(id.xyz).rg;
     // Calculate view vector
-    float3 v = normalize(world_space_camera_pos.xyz - position_ws);
+    float3 v = normalize(camera_pos_ws.xyz - position_ws);
 
     // Calculate roughness, metallic, and f0
     MaterialProperties mat = InitMaterial(albedo, n, mr.x, mr.y, emissive, 0.0f);

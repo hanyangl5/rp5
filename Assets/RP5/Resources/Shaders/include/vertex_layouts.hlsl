@@ -1,6 +1,8 @@
 #ifndef _VERTEX_LAYOUTS_
 #define _VERTEX_LAYOUTS_
 
+#include "scene_constant.hlsl"
+
 struct VsInputDefault {
     float4 pos : POSITION;
     float2 uv : TEXCOORD0;
@@ -18,13 +20,6 @@ struct PsInputDefault {
 typedef VsInputDefault VsInput;
 typedef PsInputDefault PsInput;
 typedef PsInput VsOutput;
-
-#define DECLARE_SCENE_CONSTANTS \
-float4x4 view_projection_non_jittered; \
-float4x4 view_projection_prev_non_jittered; \
-float4x4 view_projection; \
-int width; \
-int height; \
 
 #define INIT_VS_OUT \
 float4 postion_ws = mul(unity_ObjectToWorld, v.pos); \

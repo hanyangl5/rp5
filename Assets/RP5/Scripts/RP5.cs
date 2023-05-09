@@ -115,7 +115,6 @@ namespace RP5
             CommandBuffer cmd = new CommandBuffer();
             cmd.name = "lightpass";
             int kernel = opaque_shading.FindKernel("CSMain");
-            opaque_shading.SetVector("world_space_camera_pos", camera_pos);
             opaque_shading.SetTexture(kernel, "shading_rt", shading_rt);
             opaque_shading.SetTexture(kernel, "gdepth", depth_rt);
             opaque_shading.SetTexture(kernel, "gbuffer0", gbuffer_rt[0]);
@@ -209,12 +208,24 @@ namespace RP5
             context.ExecuteCommandBuffer(cmd); // submit to gpu 
             cmd.SetRenderTarget(shading_rt);
             cmd.ClearRenderTarget(true, true, Color.black);
+
+            // Update Scene Constant
+            Shader.SetGlobalVector("camera_nf", new float2(camera.nearClipPlane, camera.farClipPlane));
             Shader.SetGlobalInteger("width", width);
             Shader.SetGlobalInteger("height", height);
             
+            Shader.SetGlobalVector("camera_pos_ws", camera_pos);
             // Calculate view projection matrix
+
+            Shader.SetGlobalMatrix("world_to_camera", camera.worldToCameraMatrix);
+            Shader.SetGlobalMatrix("camera_to_world", camera.cameraToWorldMatrix);
+
             Matrix4x4 view = camera.worldToCameraMatrix;
+
             Matrix4x4 projection = GL.GetGPUProjectionMatrix(camera.nonJitteredProjectionMatrix, true);
+            
+            Shader.SetGlobalMatrix("projection_non_jittered", projection);
+            Shader.SetGlobalMatrix("projection_inv_non_jittered", projection.inverse);
 
             view_projection_non_jittered = projection * view;
 
@@ -229,9 +240,12 @@ namespace RP5
             projection_jittered[0, 2] += (jitter_offset.x/ width * 2);
             projection_jittered[1, 2] += (jitter_offset.y/ height * 2);
 
+            Shader.SetGlobalMatrix("projection", projection_jittered);
+
             Matrix4x4 view_projection = projection_jittered * view;
+            
             Shader.SetGlobalMatrix("view_projection", view_projection);
-            Shader.SetGlobalMatrix("inverse_view_projection", view_projection.inverse);
+            Shader.SetGlobalMatrix("projection_inv", view_projection.inverse);
 
             view_projection_prev_non_jittered = view_projection_non_jittered;
         }
