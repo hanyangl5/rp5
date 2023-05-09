@@ -6,32 +6,32 @@ Screen Space Reflection
 
 */
 #include  "include/common.hlsl"
+#include  "include/common_math.hlsl"
 #include  "include/transform.hlsl"
 #include  "include/scene_constant.hlsl"
 #pragma kernel SSR_CS
 #pragma require WaveBallot
+#pragma enable_d3d11_debug_symbols
 
-Texture2D<float4> depth_stencil_tex;
+Texture2D<float4> gdepth;
 Texture2D<float4> color_tex;
 Texture2D<float4> normal_tex; // world normal
 RWTexture2D<float4> ssr_tex;
 DECLARE_SCENE_CONSTANTS
 SamplerState my_linear_clamp_sampler;
 
-float SSR_MAX_RAY_DISTANCE = 70;
-float SSR_DEPTH_THICKNESS = 1.0;
-float SSR_MARCH_QUALITY = 1.0;
+// float SSR_MAX_RAY_DISTANCE = 70;
+// float SSR_DEPTH_THICKNESS = 1.0;
+// float SSR_MARCH_QUALITY = 1.0;
 // line rasterization
 
-float2 GetUvFromPositionVs(float4 position_vs, float4x4 projection) {
-    float4 position_cs = mul(projection, position_vs);
-    position_cs /= position_cs.w;
-    return (position_cs.xy * 0.5 + 0.5);
-}
+// float2 GetUvFromPositionVs(float4 position_vs, float4x4 projection) {
+//     float4 position_cs = mul(projection, position_vs);
+//     position_cs /= position_cs.w;
+//     return (position_cs.xy * 0.5 + 0.5);
+// }
 
-float2 cb_depthBufferSize; // dimensions of the z-buffer
 float cb_zThickness; // thickness to ascribe to each pixel in the depth buffer
-float cb_nearPlaneZ; // the camera's near z plane
 
 float cb_stride; // Step in horizontal or vertical pixels between samples. This is a float
 // because integer math is slow on GPUs, but should be set to an integer >= 1.
@@ -72,14 +72,15 @@ void swap(inout float a, inout float b)
     b = t;
 }
 
-float linearizeDepth(float x) {
-    return x;
+float linearizeDepth(float depth) {
+    // TODO(hylu): if there is compiler optimizations? we only care about z
+    return ComputePositionVsFromDepth(float2(0.0f, 0.0f), projection_inv_non_jittered, depth).z;
 }
 
 float linearDepthTexelFetch(int2 hitPixel)
 {
     // Load returns 0 for any value accessed out of bounds
-    return linearizeDepth(depth_stencil_tex.Load(int3(hitPixel, 0)).r);
+    return linearizeDepth(gdepth.Load(int3(hitPixel, 0)).r);
 }
 
 // Returns true if the ray hit something
@@ -96,16 +97,49 @@ bool traceScreenSpaceRay(
     // Camera space location of the ray hit
     out float3 hitPoint)
 {
-    // Clip to the near plane
-    float rayLength = ((csOrig.z + csDir.z * cb_maxDistance) < cb_nearPlaneZ) ?
-    (cb_nearPlaneZ - csOrig.z) / csDir.z : cb_maxDistance;
+
+    float rayLength = ((csOrig.z + csDir.z * cb_maxDistance) < camera_nf.x) ?
+    (camera_nf.x - csOrig.z) / (csDir.z) : cb_maxDistance;
+    rayLength = (rayLength);
     float3 csEndPoint = csOrig + csDir * rayLength;
 
+    float3 p = csOrig;
+    float step_count = cb_maxDistance;
+    float3 step_dir = (csEndPoint - csOrig) / step_count;
+    for (int i =0;i<step_count;i++) {
+        
+        float4 H0 = mul(projection_non_jittered, float4(p, 1.0f));
+        H0.xyz /= H0.w;
+        H0.xy = H0.xy * 0.5 + 0.5;
+        if (H0.x > 1.0f || H0.x < 0.0f || H0.y > 1.0f || H0.y < 0.0f)
+        {
+            hitPoint = float3(1,1,0);
+            return false;
+        }
+        int2 uv = uint2(H0.xy * float2(width, height));
+        float d = gdepth.Load(int3(uv, 0)).r;
+        //d = linearizeDepth(d);
+        if (H0.z > d) {
+            // far than d
+            hitPoint = float3(1,0,0);
+            hitPixel = H0.xy * float2(width, height);
+            hitPoint = csDir;
+            return true;
+        }
+        p += step_dir;
+    }
+    hitPoint = float3(1,0,0);
+    return false;
+
     // Project into homogeneous clip space
-    float4 H0 = mul(float4(csOrig, 1.0f), viewToTextureSpaceMatrix);
-    H0.xy *= cb_depthBufferSize;
-    float4 H1 = mul(float4(csEndPoint, 1.0f), viewToTextureSpaceMatrix);
-    H1.xy *= cb_depthBufferSize;
+    float4 H0 = mul(projection, float4(csOrig, 1.0f));
+    H0 /= H0.w;
+    H0.xy = H0.xy * 0.5 + 0.5;
+    H0.xy *= float2(width, height);
+    float4 H1 = mul(projection, float4(csEndPoint, 1.0f));
+    H1 /= H1.w;
+    H1.xy = H1.xy * 0.5 + 0.5;
+    H1.xy *= float2(width, height);
     float k0 = 1.0f / H0.w;
     float k1 = 1.0f / H1.w;
 
@@ -184,7 +218,8 @@ bool traceScreenSpaceRay(
         hitPixel = permute ? PQk.yx : PQk.xy;
         // You may need hitPixel.y = depthBufferSize.y - hitPixel.y; here if your vertical axis
         // is different than ours in screen space
-        sceneZMax = linearDepthTexelFetch(int2(hitPixel));
+        sceneZMax = (linearizeDepth(gdepth.Load(int3(hitPixel, 0)).r));
+        //sceneZMax = linearDepthTexelFetch(int2(hitPixel));
 
         PQk += dPQk;
     }
@@ -192,32 +227,50 @@ bool traceScreenSpaceRay(
     // Advance Q based on the number of steps
     Q.xy += dQ.xy * stepCount;
     hitPoint = Q * (1.0f / PQk.w);
+    hitPoint = csEndPoint;
     return intersectsDepthBuffer(sceneZMax, rayZMin, rayZMax);
 }
 
 [numthreads(FULL_SCREEN_CS_THREAD_X, FULL_SCREEN_CS_THREAD_Y, FULL_SCREEN_CS_THREAD_Z)]
 void SSR_CS(uint3 id : SV_DispatchThreadID)
 {
-    float depth = depth_stencil_tex.Load(id).x;
+    float depth = gdepth.Load(id).x;
+    // Check if the gbuffer pixel is invalid
+    if(Equal(depth, 0.0) == 0.0) {
+        ssr_tex[id.xy] = float4(0.0, 0.0, 0.0, 1.0);
+        return;
+    }
     float2 uv = (float2(id.xy) + 0.5) / float2(width, height);
     float3 position_vs = ComputePositionVsFromDepth(uv, projection_inv, depth).xyz;
-    float3 normal_vs = mul(world_to_camera, float4(normalize(normal_tex.Load(id).xyz), 0.0)).xyz;
-    float3 v = normalize(-position_vs);
+    
+    //float3 position_ws = ComputePositionWsFromDepth(uv, view_projection_inv, depth).xyz;
+    float3 normal_vs = normalize(mul(world_to_camera, float4(normalize(normal_tex.Load(id).xyz), 0.0)).xyz);
+    float3 v = normalize(position_vs);
 
+    // compute the shadidng point and refelction direction in view space
     float3 reflection_dir_vs = reflect(v, normal_vs);
     float3 origin_vs = position_vs;
-    float2 hit_pixel;
-    float3 hit_point;
+    
+    float2 hit_pixel = float2(0.0, 0.0);
+    float3 hit_point = float3(0.0f, 0.0f, 0.0f);
     bool intersection = traceScreenSpaceRay(origin_vs, reflection_dir_vs, 0, hit_pixel, hit_point);
 
-    depth = depth_stencil_tex.Load(int3(hit_pixel, 0)).x;
-    hit_pixel.xy /= float2(width, height);
-    if(hit_pixel.x > 1.0f || hit_pixel.x < 0.0f || hit_pixel.y > 1.0f || hit_pixel.y < 0.0f)
-    {
-        intersection = false;
-    }
+    depth = gdepth.Load(int3(hit_pixel, 0)).x;
+    // hit_pixel.xy /= float2(width, height);
+    // if(hit_pixel.x > 1.0f || hit_pixel.x < 0.0f || hit_pixel.y > 1.0f || hit_pixel.y < 0.0f)
+    // {
+    //     intersection = false;
+    // }
     float RoV = dot(v, reflection_dir_vs);
     ssr_tex[id.xy] = float4(hit_pixel, depth, RoV) * (intersection ? 1.0f : 0.0f);
+    
+
+    ssr_tex[id.xy] = float4(hit_point, 1.0);
+    if(intersection == true) {
+        ssr_tex[id.xy] = color_tex.Load(int3(hit_pixel, 0));
+    } else {
+        ssr_tex[id.xy] = float4(hit_point,1.0);
+    }
     // reflection dir is always towards screen, end point can be clamp to near plane
 }
 

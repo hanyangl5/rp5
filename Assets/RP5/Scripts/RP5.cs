@@ -37,7 +37,7 @@ namespace RP5
         // ComputeShader clear_buffer;
         // ComputeShader build_cluster = Resources.Load<ComputeShader>("Shaders/BuildCluster");
         // ComputeShader transform_geometry = Resources.Load<ComputeShader>("Shaders/ObjectTransform");
-        // ComputeShader composite_shading = Resources.Load<ComputeShader>("Shaders/CompositeShading");
+        ComputeShader composite_shading = Resources.Load<ComputeShader>("Shaders/CompositeSSR");
         // ComputeShader auto_exposure;
 
         // ComputeShader bloom_cs;
@@ -153,7 +153,7 @@ namespace RP5
 
         void SSRPass(ScriptableRenderContext context)
         {
-            ssr_pass.BindResources(history_depth, history_color, gbuffer_rt[1]);
+            ssr_pass.BindResources(history_depth, history_color, gbuffer_rt[1], srp_setting);
             ssr_pass.Dispatch(context, tg.x, tg.y, tg.z);
         }
 
@@ -165,14 +165,14 @@ namespace RP5
 
         void CompositeShading(ScriptableRenderContext context)
         {
-            //CommandBuffer cmd = new CommandBuffer();
-            //cmd.name = "composite shading";
+            CommandBuffer cmd = new CommandBuffer();
+            cmd.name = "composite shading";
 
-            //int kernel = composite_shading.FindKernel("CompositeShading");
-            //composite_shading.SetTexture(kernel, "color_tex", shading_rt);
-            //composite_shading.SetTexture(kernel, "ssr_tex", ssr_tex);
-            //cmd.DispatchCompute(composite_shading, kernel, full_screen_cs_thread_group.x, full_screen_cs_thread_group.y, full_screen_cs_thread_group.z);
-            //context.ExecuteCommandBuffer(cmd);
+            int kernel = composite_shading.FindKernel("CompositeSSR");
+            composite_shading.SetTexture(kernel, "color_tex", shading_rt);
+            composite_shading.SetTexture(kernel, "ssr_tex", ssr_pass.ssr_tex);
+            cmd.DispatchCompute(composite_shading, kernel, tg.x, tg.y, tg.z);
+            context.ExecuteCommandBuffer(cmd);
         }
 
 
@@ -232,7 +232,7 @@ namespace RP5
             Shader.SetGlobalMatrix("view_projection_non_jittered", view_projection_non_jittered);
             Shader.SetGlobalMatrix("view_projection_prev_non_jittered", view_projection_prev_non_jittered);
 
-            float2 jitter_offset = aa_pass.GetJitterOffset()  - new float2(0.5f, 0.5f); // [-0.5, 0.5]
+            float2 jitter_offset = srp_setting.enable_taa == true ? aa_pass.GetJitterOffset()  - new float2(0.5f, 0.5f) : new float2(0.0f, 0.0f); // [-0.5, 0.5]
             
             Matrix4x4 projection_jittered = projection;
             // offset the projection matrix
@@ -241,11 +241,12 @@ namespace RP5
             projection_jittered[1, 2] += (jitter_offset.y/ height * 2);
 
             Shader.SetGlobalMatrix("projection", projection_jittered);
+            Shader.SetGlobalMatrix("projection_inv", projection_jittered.inverse);
 
             Matrix4x4 view_projection = projection_jittered * view;
             
             Shader.SetGlobalMatrix("view_projection", view_projection);
-            Shader.SetGlobalMatrix("projection_inv", view_projection.inverse);
+            Shader.SetGlobalMatrix("view_projection_inv", view_projection.inverse);
 
             view_projection_prev_non_jittered = view_projection_non_jittered;
         }
@@ -277,7 +278,7 @@ namespace RP5
 
             if (cameras.Count() > 0)
             {
-                if (cameras[0].cameraType == CameraType.SceneView)
+                
                 {
                     var camera = cameras[0];
                     context.SetupCameraProperties(camera);
@@ -301,17 +302,18 @@ namespace RP5
                     if (srp_setting.enable_ssr)
                     {
                         SSRPass(context);
+                        CompositeShading(context);
                     }
 
-                    if (srp_setting.enable_taa)
-                    {
-                        AntiAliasing(context);
-                    }
+                    //if (srp_setting.enable_taa)
+                    //{
+                    //    AntiAliasing(context);
+                    //}
                     
-                    if(srp_setting.enable_post_processsing)
-                    {
-                        PostProceePass(context);
-                    }
+                    //if(srp_setting.enable_post_processsing)
+                    //{
+                    //    PostProceePass(context);
+                    //}
 
                     //Misc(context);
 
