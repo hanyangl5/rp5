@@ -1217,7 +1217,7 @@ MonoBehaviour:
   enable_ssr: 1
   enable_taa: 0
   enable_post_processsing: 0
-  cb_zThickness: 9999
+  cb_zThickness: 10
   cb_stride: 1
   cb_maxSteps: 100
   cb_maxDistance: 100
