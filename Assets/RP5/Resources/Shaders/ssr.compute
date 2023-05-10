@@ -100,35 +100,36 @@ bool traceScreenSpaceRay(
 
     float rayLength = ((csOrig.z + csDir.z * cb_maxDistance) < camera_nf.x) ?
     (camera_nf.x - csOrig.z) / (csDir.z) : cb_maxDistance;
-    rayLength = (rayLength);
-    float3 csEndPoint = csOrig + csDir * rayLength;
+    rayLength = abs(rayLength);
 
-    float3 p = csOrig;
+    float3 csEndPoint = csOrig + csDir * rayLength;
+    //return false;
     float step_count = cb_maxDistance;
     float3 step_dir = (csEndPoint - csOrig) / step_count;
-    for (int i =0;i<step_count;i++) {
+    hitPoint = step_dir;
+    
+    float3 p = csOrig + step_dir;
+    for (int i =1;i<step_count;i++) {
         
         float4 H0 = mul(projection_non_jittered, float4(p, 1.0f));
-        H0.xyz /= H0.w;
+        H0.xy /= H0.w;
         H0.xy = H0.xy * 0.5 + 0.5;
         if (H0.x > 1.0f || H0.x < 0.0f || H0.y > 1.0f || H0.y < 0.0f)
         {
-            hitPoint = float3(1,1,0);
             return false;
         }
         int2 uv = uint2(H0.xy * float2(width, height));
         float d = gdepth.Load(int3(uv, 0)).r;
-        //d = linearizeDepth(d);
-        if (H0.z > d) {
+        // occluded by depth buffer
+        // reverse z, near: 1, far : 0
+        if (p.z < linearizeDepth(d) - cb_zThickness) {
             // far than d
-            hitPoint = float3(1,0,0);
+            hitPoint = float3(uv, i/step_count);
             hitPixel = H0.xy * float2(width, height);
-            hitPoint = csDir;
             return true;
         }
         p += step_dir;
     }
-    hitPoint = float3(1,0,0);
     return false;
 
     // Project into homogeneous clip space
@@ -248,7 +249,7 @@ void SSR_CS(uint3 id : SV_DispatchThreadID)
     float3 v = normalize(position_vs);
 
     // compute the shadidng point and refelction direction in view space
-    float3 reflection_dir_vs = reflect(v, normal_vs);
+    float3 reflection_dir_vs = normalize(reflect(v, normal_vs));
     float3 origin_vs = position_vs;
     
     float2 hit_pixel = float2(0.0, 0.0);
@@ -256,21 +257,23 @@ void SSR_CS(uint3 id : SV_DispatchThreadID)
     bool intersection = traceScreenSpaceRay(origin_vs, reflection_dir_vs, 0, hit_pixel, hit_point);
 
     depth = gdepth.Load(int3(hit_pixel, 0)).x;
-    // hit_pixel.xy /= float2(width, height);
-    // if(hit_pixel.x > 1.0f || hit_pixel.x < 0.0f || hit_pixel.y > 1.0f || hit_pixel.y < 0.0f)
-    // {
-    //     intersection = false;
-    // }
-    float RoV = dot(v, reflection_dir_vs);
-    ssr_tex[id.xy] = float4(hit_pixel, depth, RoV) * (intersection ? 1.0f : 0.0f);
+    hit_pixel.xy /= float2(width, height);
+    if(hit_pixel.x > 1.0f || hit_pixel.x < 0.0f || hit_pixel.y > 1.0f || hit_pixel.y < 0.0f)
+    {
+        intersection = false;
+    }
+    //float RoV = dot(v, reflection_dir_vs);
+    //ssr_tex[id.xy] = float4(hit_pixel, depth, RoV) * (intersection ? 1.0f : 0.0f);
     
-
-    ssr_tex[id.xy] = float4(hit_point, 1.0);
     if(intersection == true) {
         ssr_tex[id.xy] = color_tex.Load(int3(hit_pixel, 0));
+
+        ssr_tex[id.xy] =  float4(hit_point, 1.0);
+        //ssr_tex[id.xy] = float4(1.0,1.0,1.0, 1.0);
     } else {
-        ssr_tex[id.xy] = float4(hit_point,1.0);
+        ssr_tex[id.xy] = float4(hit_point, 1.0);
     }
+    //ssr_tex[id.xy] = float4(reflection_dir_vs, 1.0);
     // reflection dir is always towards screen, end point can be clamp to near plane
 }
 

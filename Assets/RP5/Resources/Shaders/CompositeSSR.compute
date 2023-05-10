@@ -11,5 +11,5 @@ RWTexture2D<float4> ssr_tex;
 [numthreads(FULL_SCREEN_CS_THREAD_X, FULL_SCREEN_CS_THREAD_Y, FULL_SCREEN_CS_THREAD_Z)] 
 void CompositeSSR (uint3 id : SV_DispatchThreadID)
 {
-    color_tex[id.xy] = ssr_tex[id.xy];
+    color_tex[id.xy] =ssr_tex[id.xy];
 }
